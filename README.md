@@ -350,8 +350,54 @@ PillSync/
 └── README.md
 ```
 
----
-
 ## Setup & Running
 
 For complete setup instructions, see the **[INSTALLATION.md](file:///c:/Users/sukum/OneDrive/Desktop/PillSync/INSTALLATION.md)** guide.
+
+---
+
+## Professional Git Flow & Sync Guidelines
+
+To maintain synchronization between the local repository and the remote GitHub repository, follow these guidelines.
+
+### Helper Script
+Run `git_check.bat` in the root directory before starting development. This script automatically:
+1. Contacting remote origin to fetch status.
+2. Checking for local uncommitted changes to prevent work conflicts.
+3. Comparing the local `main` branch with the remote `origin/main` branch to check for updates.
+4. Comparing the active milestone branch with its remote counterpart.
+
+---
+
+### Standard Git Command Reference
+
+Use these commands to manage your files and branches during development:
+
+#### 1. `git status`
+* **When to use:** Use this frequently to see which files are modified, untracked, or staged.
+* **Command:** `git status`
+
+#### 2. `git fetch`
+* **When to use:** Use this to download the latest commit history from the remote GitHub repository without merging any changes into your working branches.
+* **Command:** `git fetch origin`
+
+#### 3. `git diff main origin/main`
+* **When to use:** Use this to compare your local `main` branch with the remote `origin/main` branch to see what changes have been made on the remote side.
+* **Command:** `git diff main origin/main`
+
+#### 4. `git pull origin main`
+* **When to use:** Use this to download remote changes and merge them directly into your local `main` branch. Run this before starting new features.
+* **Command:** `git pull origin main`
+
+#### 5. `git add .`
+* **When to use:** Use this to stage all modified and new files in the current folder, preparing them for a commit.
+* **Command:** `git add .`
+
+#### 6. `git commit -m "message"`
+* **When to use:** Use this to create a local snapshot of your staged changes with a descriptive message.
+* **Command:** `git commit -m "feat: Add medication reminders"`
+
+#### 7. `git push origin main`
+* **When to use:** Use this to publish your local commits to the remote branch on GitHub.
+* **Command:** `git push origin main`
+
