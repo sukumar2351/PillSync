@@ -83,8 +83,21 @@ const Login = ({ setAuth, triggerLoader }) => {
         proceedLogin();
       }
     } catch (err) {
-      if (err.response && err.response.data && err.response.data.detail) {
-        setServerError(err.response.data.detail);
+      console.error("[Login] error object:", err);
+      if (err.response?.data) {
+        const data = err.response.data;
+        if (typeof data.detail === "string") {
+          setServerError(data.detail);
+        } else if (Array.isArray(data.detail)) {
+          const errors = data.detail.map(d => `${d.loc ? d.loc.join('.') : ''}: ${d.msg}`).join(", ");
+          setServerError(`Validation failed: ${errors}`);
+        } else if (data.message) {
+          setServerError(data.message);
+        } else {
+          setServerError(JSON.stringify(data.detail || data));
+        }
+      } else if (err.message) {
+        setServerError(`Connection failed: ${err.message} (Is backend API running on port 8000?)`);
       } else {
         setServerError("Connection failed. Please check your network.");
       }
