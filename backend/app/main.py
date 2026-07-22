@@ -243,10 +243,11 @@ async def lifespan(app: FastAPI):
         db.execute(text("ALTER TABLE patient_profiles ADD COLUMN IF NOT EXISTS notification_preference VARCHAR(50) DEFAULT 'browser';"))
         db.execute(text("ALTER TABLE patient_profiles ADD COLUMN IF NOT EXISTS reminder_status VARCHAR(50);"))
         db.execute(text("ALTER TABLE patient_profiles ADD COLUMN IF NOT EXISTS delivery_status VARCHAR(50);"))
-        # New SMS audit columns on notification_settings
+        # New SMS/Email audit columns on notification_settings
         db.execute(text("ALTER TABLE notification_settings ADD COLUMN IF NOT EXISTS sms_message_sid VARCHAR(50);"))
         db.execute(text("ALTER TABLE notification_settings ADD COLUMN IF NOT EXISTS sms_error TEXT;"))
-        db.execute(text("ALTER TABLE notification_settings ADD COLUMN IF NOT EXISTS sms_recipient VARCHAR(20);"))
+        db.execute(text("ALTER TABLE notification_settings ADD COLUMN IF NOT EXISTS sms_recipient VARCHAR(255);"))
+        db.execute(text("ALTER TABLE notification_settings ADD COLUMN IF NOT EXISTS notification_email VARCHAR(255);"))
         db.commit()
         app_logger.info("Schema migrations applied successfully.")
     except Exception as migration_err:

@@ -187,9 +187,10 @@ def get_reminders_today(db: Session = Depends(get_db), current_user: User = Depe
             )
 
             if email_eligible:
+                target_email = settings.notification_email or current_user.email
                 logger.info(
                     f"[Reminders] Dispatching LIVE Email Reminder for medicine='{med.name}' "
-                    f"({sched.time_of_day}) to {current_user.email}"
+                    f"({sched.time_of_day}) to {target_email}"
                 )
                 try:
                     res = send_medicine_reminder(
@@ -197,7 +198,7 @@ def get_reminders_today(db: Session = Depends(get_db), current_user: User = Depe
                         med.name,
                         med.dosage,
                         sched.time_of_day,
-                        current_user.email
+                        target_email
                     )
                 except Exception as cred_err:
                     logger.error(f"[Reminders] Email skipped — configuration failure: {cred_err}")

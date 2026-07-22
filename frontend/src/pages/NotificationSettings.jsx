@@ -7,7 +7,9 @@ const NotificationSettings = ({ auth }) => {
   const [emailEnabled, setEmailEnabled] = useState(false);
   const [browserNotifications, setBrowserNotifications] = useState(true);
   const [notificationFrequency, setNotificationFrequency] = useState("Daily");
-  const [phoneNumber, setPhoneNumber] = useState("");
+  const [notificationEmail, setNotificationEmail] = useState("");
+  const [isEditingEmail, setIsEditingEmail] = useState(false);
+  const [tempEmail, setTempEmail] = useState("");
 
   // Email status panel fields
   const [lastEmailSent, setLastEmailSent] = useState("");
@@ -38,11 +40,13 @@ const NotificationSettings = ({ auth }) => {
     setEmailEnabled(data.sms_enabled ?? false);
     setBrowserNotifications(data.browser_notifications ?? true);
     setNotificationFrequency(data.notification_frequency || "Daily");
-    setPhoneNumber(data.phone_number || data.phone || "");
+    const dbEmail = data.notification_email || auth.email || "";
+    setNotificationEmail(dbEmail);
+    setTempEmail(dbEmail);
     setLastEmailSent(data.last_sms_sent ? new Date(data.last_sms_sent).toLocaleString() : "No Email sent yet");
     setDeliveryStatus(data.delivery_status || "Not configured");
     setSmtpServer(data.sms_message_sid || "Gmail-SMTP");
-    setEmailRecipient(data.sms_recipient || auth.email || "");
+    setEmailRecipient(data.sms_recipient || dbEmail);
     setEmailError(data.sms_error || "");
   };
 
@@ -62,16 +66,24 @@ const NotificationSettings = ({ auth }) => {
   useEffect(() => { fetchSettings(); }, []);
 
   const handleSave = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     console.log("[NotificationSettings] Save Preferences clicked.");
     setSaving(true);
     setSuccessMsg("");
     setErrorMsg("");
 
+    // Validate email if enabled
+    if (emailEnabled && !notificationEmail) {
+      setErrorMsg("A valid notification email is required when email reminders are enabled.");
+      setSaving(false);
+      return;
+    }
+
     try {
       const payload = {
-        phone_number: phoneNumber || null,
-        phone: phoneNumber || null,
+        phone_number: null,
+        phone: null,
+        notification_email: notificationEmail || auth.email,
         sms_enabled: emailEnabled,
         browser_notifications: browserNotifications,
         notification_frequency: notificationFrequency,
@@ -82,6 +94,7 @@ const NotificationSettings = ({ auth }) => {
       console.log("[NotificationSettings] PUT response:", updated);
       setSuccessMsg("Notification preferences saved successfully.");
       populateFromData(updated);
+      setIsEditingEmail(false);
     } catch (err) {
       setErrorMsg(`Save failed: ${parseErrorMessage(err)}`);
     } finally {
@@ -101,11 +114,11 @@ const NotificationSettings = ({ auth }) => {
       console.log("[NotificationSettings] Test Email response:", res);
 
       setSuccessMsg(
-        `✓ Real verification email sent successfully! Status: ${res.delivery_status || "sent"} | To: ${res.recipient || auth.email}`
+        `✓ Real verification email sent successfully! Status: ${res.delivery_status || "sent"} | To: ${res.recipient || notificationEmail}`
       );
       setSmtpServer(res.provider || "Gmail-SMTP");
       setDeliveryStatus(res.delivery_status || "sent");
-      setEmailRecipient(res.recipient || auth.email);
+      setEmailRecipient(res.recipient || notificationEmail);
       setEmailError("");
       setLastEmailSent(new Date().toLocaleString());
     } catch (err) {
@@ -114,6 +127,12 @@ const NotificationSettings = ({ auth }) => {
     } finally {
       setTesting(false);
     }
+  };
+
+  const handleUseProfileEmail = () => {
+    setNotificationEmail(auth.email);
+    setTempEmail(auth.email);
+    setSuccessMsg("Reset to your account login email. Make sure to click Save Preferences!");
   };
 
   if (isLoading) {
@@ -192,17 +211,80 @@ const NotificationSettings = ({ auth }) => {
                   </select>
                 </div>
 
+                {/* Editable Registered Notification Email Section */}
                 <div className="form-group" style={{ marginBottom: "1.5rem" }}>
-                  <label className="form-label">Registered Notification Email</label>
-                  <input
-                    type="email"
-                    className="form-input"
-                    value={auth.email}
-                    disabled
-                    style={{ cursor: "not-allowed", opacity: 0.8 }}
-                  />
-                  <small style={{ color: "var(--text-light)" }}>
-                    Reminders are sent directly to your account email address. To update this, modify your profile settings.
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+                    <label className="form-label" style={{ margin: 0 }}>Registered Notification Email</label>
+                    <div style={{ display: "flex", gap: "0.5rem" }}>
+                      <button
+                        type="button"
+                        onClick={handleUseProfileEmail}
+                        className="btn-link"
+                        style={{ fontSize: "0.75rem", background: "none", border: "none", color: "var(--primary-color)", cursor: "pointer", textDecoration: "underline" }}
+                      >
+                        Use Profile Email
+                      </button>
+                      {!isEditingEmail && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTempEmail(notificationEmail);
+                            setIsEditingEmail(true);
+                          }}
+                          className="btn-link"
+                          style={{ fontSize: "0.75rem", background: "none", border: "none", color: "var(--primary-color)", cursor: "pointer", fontWeight: "bold" }}
+                        >
+                          ✎ Edit
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {isEditingEmail ? (
+                    <div style={{ display: "flex", gap: "0.5rem" }}>
+                      <input
+                        type="email"
+                        className="form-input"
+                        value={tempEmail}
+                        onChange={(e) => setTempEmail(e.target.value)}
+                        placeholder="Enter notification email address"
+                        style={{ flex: 1 }}
+                        required
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => {
+                          setNotificationEmail(tempEmail);
+                          setIsEditingEmail(false);
+                        }}
+                        style={{ padding: "0 1rem" }}
+                      >
+                        Ok
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => {
+                          setTempEmail(notificationEmail);
+                          setIsEditingEmail(false);
+                        }}
+                        style={{ padding: "0 1rem", background: "var(--border)" }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <input
+                      type="email"
+                      className="form-input"
+                      value={notificationEmail}
+                      disabled
+                      style={{ background: "var(--bg-secondary)", cursor: "not-allowed", opacity: 0.85 }}
+                    />
+                  )}
+                  <small style={{ color: "var(--text-light)", marginTop: "0.25rem", display: "block" }}>
+                    Emails will be delivered here for all active medication tracking schedules.
                   </small>
                 </div>
 
@@ -224,12 +306,12 @@ const NotificationSettings = ({ auth }) => {
             </div>
 
             {/* ── Email Status Panel ── */}
-            <div className="card col-span-1" style={{ background: "#f8fafc", borderColor: "#e2e8f0" }}>
+            <div className="card col-span-1" style={{ background: "var(--bg-secondary)", borderColor: "var(--border)" }}>
               <h3 className="card-title" style={{ color: "var(--text-primary)" }}>Gmail SMTP Status</h3>
 
               <div style={{ marginTop: "1rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
                 <div>
-                  <span className="info-label-block" style={{ fontSize: "0.75rem", color: "var(--text-light)", display: "block" }}>Delivery Status</span>
+                  <span className="info-label-block" style={{ fontSize: "0.75rem", color: "var(--text-light)", display: "block" }}>Connection Status</span>
                   <span className={`badge ${statusOk ? "badge-success" : deliveryStatus === "failed" ? "badge-danger" : "badge-secondary"}`}>
                     {deliveryStatus || "Not configured"}
                   </span>
@@ -237,8 +319,8 @@ const NotificationSettings = ({ auth }) => {
 
                 {smtpServer && (
                   <div>
-                    <span className="info-label-block" style={{ fontSize: "0.75rem", color: "var(--text-light)", display: "block" }}>Mail Server</span>
-                    <code style={{ fontSize: "0.8rem", background: "#e2e8f0", padding: "2px 6px", borderRadius: "4px", wordBreak: "break-all" }}>
+                    <span className="info-label-block" style={{ fontSize: "0.75rem", color: "var(--text-light)", display: "block" }}>Email Provider</span>
+                    <code style={{ fontSize: "0.8rem", background: "var(--bg-base)", padding: "2px 6px", borderRadius: "4px", wordBreak: "break-all" }}>
                       {smtpServer}
                     </code>
                   </div>
@@ -246,14 +328,14 @@ const NotificationSettings = ({ auth }) => {
 
                 {emailRecipient && (
                   <div>
-                    <span className="info-label-block" style={{ fontSize: "0.75rem", color: "var(--text-light)", display: "block" }}>Last Sent To</span>
-                    <span style={{ fontSize: "0.9rem" }}>{emailRecipient}</span>
+                    <span className="info-label-block" style={{ fontSize: "0.75rem", color: "var(--text-light)", display: "block" }}>Registered Email</span>
+                    <span style={{ fontSize: "0.85rem", color: "var(--text-primary)" }}>{emailRecipient}</span>
                   </div>
                 )}
 
                 <div>
-                  <span className="info-label-block" style={{ fontSize: "0.75rem", color: "var(--text-light)", display: "block" }}>Last Email Time</span>
-                  <span style={{ fontSize: "0.85rem", fontFamily: "monospace" }}>{lastEmailSent}</span>
+                  <span className="info-label-block" style={{ fontSize: "0.75rem", color: "var(--text-light)", display: "block" }}>Last Email Sent</span>
+                  <span style={{ fontSize: "0.85rem", fontFamily: "monospace", color: "var(--text-primary)" }}>{lastEmailSent}</span>
                 </div>
 
                 {emailError && (

@@ -122,14 +122,15 @@ class NotificationSetting(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False)
     phone_number = Column(String(20), nullable=True)
+    notification_email = Column(String(255), nullable=True)
     sms_enabled = Column(Boolean, default=False)
     browser_notifications = Column(Boolean, default=True)
     notification_frequency = Column(String(50), default="Daily")
     last_sms_sent = Column(DateTime, nullable=True)
     delivery_status = Column(String(50), nullable=True)   # e.g. "sent", "delivered", "failed"
-    sms_message_sid = Column(String(50), nullable=True)   # Twilio Message SID (e.g. SMxxxxxxxx)
-    sms_error = Column(Text, nullable=True)               # Last SMS error message if any
-    sms_recipient = Column(String(20), nullable=True)     # Phone number SMS was last sent to
+    sms_message_sid = Column(String(50), nullable=True)   # Gmail-SMTP / Provider SID
+    sms_error = Column(Text, nullable=True)               # Last error message if any
+    sms_recipient = Column(String(255), nullable=True)    # Email recipient
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
     user = relationship("User", back_populates="notification_setting")

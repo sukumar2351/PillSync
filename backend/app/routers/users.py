@@ -70,10 +70,9 @@ def get_notification_settings(current_user: User = Depends(get_current_user), db
         settings = current_user.notification_setting
         if not settings:
             print(f"[*] Notification settings row missing for user_id {current_user.id}. Creating default...")
-            default_phone = current_user.patient_profile.phone if current_user.patient_profile else None
             settings = NotificationSetting(
                 user_id=current_user.id,
-                phone_number=default_phone,
+                notification_email=current_user.email,
                 sms_enabled=False,
                 browser_notifications=True,
                 notification_frequency="Daily",
@@ -83,10 +82,17 @@ def get_notification_settings(current_user: User = Depends(get_current_user), db
             db.commit()
             db.refresh(settings)
             print("[*] Default settings row created successfully.")
+        
+        # If notification_email is null in DB, populate it with current user email
+        if not settings.notification_email:
+            settings.notification_email = current_user.email
+            db.commit()
+            db.refresh(settings)
             
         return {
             "phone_number": settings.phone_number,
             "phone": settings.phone_number,
+            "notification_email": settings.notification_email,
             "sms_enabled": settings.sms_enabled,
             "browser_notifications": settings.browser_notifications,
             "notification_preference": settings.notification_frequency,
@@ -107,7 +113,7 @@ def get_notification_settings(current_user: User = Depends(get_current_user), db
 
 @router.put("/profile/notifications", response_model=NotificationSettingsResponse)
 def update_notification_settings(payload: NotificationSettingsUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Modify notification preferences and phone number."""
+    """Modify notification preferences and email address."""
     print(f"[*] PUT /profile/notifications called by user_id: {current_user.id} with payload: {payload.dict()}")
     if current_user.role.name != "patient":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only patients have notification settings.")
@@ -116,10 +122,9 @@ def update_notification_settings(payload: NotificationSettingsUpdate, current_us
         settings = current_user.notification_setting
         if not settings:
             print(f"[*] Settings row missing during update. Creating base row...")
-            default_phone = current_user.patient_profile.phone if current_user.patient_profile else None
             settings = NotificationSetting(
                 user_id=current_user.id,
-                phone_number=default_phone,
+                notification_email=payload.notification_email or current_user.email,
                 sms_enabled=False,
                 browser_notifications=True,
                 notification_frequency="Daily",
@@ -128,13 +133,8 @@ def update_notification_settings(payload: NotificationSettingsUpdate, current_us
             db.add(settings)
             db.flush()
 
-        # Determine phone fields
-        phone_to_set = payload.phone_number if payload.phone_number is not None else payload.phone
-        if phone_to_set is not None:
-            settings.phone_number = phone_to_set
-            # Keep patient profile phone in sync
-            if current_user.patient_profile:
-                current_user.patient_profile.phone = phone_to_set
+        if payload.notification_email is not None:
+            settings.notification_email = payload.notification_email
 
         settings.sms_enabled = payload.sms_enabled
         settings.browser_notifications = payload.browser_notifications
@@ -147,6 +147,7 @@ def update_notification_settings(payload: NotificationSettingsUpdate, current_us
         return {
             "phone_number": settings.phone_number,
             "phone": settings.phone_number,
+            "notification_email": settings.notification_email,
             "sms_enabled": settings.sms_enabled,
             "browser_notifications": settings.browser_notifications,
             "notification_preference": settings.notification_frequency,

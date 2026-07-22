@@ -331,6 +331,7 @@ class AdherenceStatsResponse(BaseModel):
 class NotificationSettingsResponse(BaseModel):
     phone_number: Optional[str] = None
     phone: Optional[str] = None
+    notification_email: Optional[str] = None
     sms_enabled: bool
     browser_notifications: bool
     notification_preference: str
@@ -349,6 +350,7 @@ class NotificationSettingsResponse(BaseModel):
 class NotificationSettingsUpdate(BaseModel):
     phone_number: Optional[str] = None
     phone: Optional[str] = None
+    notification_email: Optional[str] = None
     sms_enabled: bool
     browser_notifications: bool
     notification_frequency: str
