@@ -21,11 +21,12 @@ load_dotenv()
 logger = logging.getLogger("email_service")
 
 # ── Credentials ──────────────────────────────────────────────────────────────
-SMTP_HOST      = os.getenv("SMTP_HOST",     "smtp.gmail.com").strip()
-SMTP_PORT      = int(os.getenv("SMTP_PORT",  "587").strip())
-SMTP_USERNAME  = os.getenv("SMTP_USERNAME",  "").strip()
-SMTP_PASSWORD  = os.getenv("SMTP_PASSWORD",  "").strip()
-EMAIL_FROM     = os.getenv("EMAIL_FROM",     SMTP_USERNAME).strip()
+SMTP_HOST      = os.getenv("SMTP_SERVER",     "smtp.gmail.com").strip()
+SMTP_PORT_RAW  = os.getenv("SMTP_PORT",        "587").strip()
+SMTP_PORT      = int(SMTP_PORT_RAW) if SMTP_PORT_RAW.isdigit() else 587
+SMTP_USERNAME  = os.getenv("EMAIL_ADDRESS",   "").strip()
+SMTP_PASSWORD  = os.getenv("EMAIL_APP_PASSWORD", "").strip()
+EMAIL_FROM     = os.getenv("EMAIL_ADDRESS",   SMTP_USERNAME).strip()
 
 MAX_RETRIES = 2
 RETRY_DELAY = 2
@@ -38,8 +39,8 @@ def _print_startup_banner():
     print(sep)
     print(f"  SMTP HOST    : {SMTP_HOST}")
     print(f"  SMTP PORT    : {SMTP_PORT}")
-    print(f"  SMTP USERNAME: {'✓ ' + SMTP_USERNAME if SMTP_USERNAME else '✗  NOT SET'}")
-    print(f"  SMTP PASSWORD: {'✓  configured (hidden)' if SMTP_PASSWORD else '✗  NOT SET'}")
+    print(f"  EMAIL_ADDRESS: {'✓ ' + SMTP_USERNAME if SMTP_USERNAME else '✗  NOT SET'}")
+    print(f"  EMAIL_APP_PASSWORD: {'✓  configured (hidden)' if SMTP_PASSWORD else '✗  NOT SET'}")
     print(f"  EMAIL FROM   : {'✓ ' + EMAIL_FROM if EMAIL_FROM else '✗  NOT SET'}")
     print(f"  MODE         : {'✓  LIVE — SMTP email reminders enabled' if ok else '✗  INCOMPLETE'}")
     print(sep)
@@ -52,10 +53,7 @@ def send_email(to_email: str, subject: str, html_body: str, plain_body: str = ""
     Core SMTP mail dispatcher with retry and exponential backoff logic.
     """
     if not (SMTP_USERNAME and SMTP_PASSWORD):
-        msg = "SMTP Username/Password not configured in .env."
-        logger.error("[Email] %s", msg)
-        print(f"[Email] ERROR: {msg}")
-        return {"status": "failed", "error": msg, "provider": "Gmail-SMTP", "to": to_email}
+        raise RuntimeError("Email service is not configured. Please configure EMAIL_ADDRESS and EMAIL_APP_PASSWORD in the .env file.")
 
     logger.info("[Email] ── New dispatch request ────────────────────────────")
     logger.info("[Email] Recipient : %s", to_email)

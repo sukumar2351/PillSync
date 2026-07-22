@@ -37,17 +37,17 @@ const NotificationSettings = ({ auth }) => {
   };
 
   const populateFromData = (data) => {
-    setEmailEnabled(data.sms_enabled ?? false);
+    setEmailEnabled(data.email_enabled ?? false);
     setBrowserNotifications(data.browser_notifications ?? true);
     setNotificationFrequency(data.notification_frequency || "Daily");
     const dbEmail = data.notification_email || auth.email || "";
     setNotificationEmail(dbEmail);
     setTempEmail(dbEmail);
-    setLastEmailSent(data.last_sms_sent ? new Date(data.last_sms_sent).toLocaleString() : "No Email sent yet");
+    setLastEmailSent(data.last_email_sent ? new Date(data.last_email_sent).toLocaleString() : "No Email sent yet");
     setDeliveryStatus(data.delivery_status || "Not configured");
-    setSmtpServer(data.sms_message_sid || "Gmail-SMTP");
-    setEmailRecipient(data.sms_recipient || dbEmail);
-    setEmailError(data.sms_error || "");
+    setSmtpServer(data.email_message_sid || "Gmail-SMTP");
+    setEmailRecipient(data.email_recipient || dbEmail);
+    setEmailError(data.email_error || "");
   };
 
   const fetchSettings = async () => {
@@ -81,10 +81,8 @@ const NotificationSettings = ({ auth }) => {
 
     try {
       const payload = {
-        phone_number: null,
-        phone: null,
         notification_email: notificationEmail || auth.email,
-        sms_enabled: emailEnabled,
+        email_enabled: emailEnabled,
         browser_notifications: browserNotifications,
         notification_frequency: notificationFrequency,
         notification_preference: notificationFrequency,

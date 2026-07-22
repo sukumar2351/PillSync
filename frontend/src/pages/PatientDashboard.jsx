@@ -309,7 +309,7 @@ const PatientDashboard = ({ auth }) => {
             <div className="card stat-card" style={{ borderLeft: "4px solid #3b82f6" }}>
               <span className="stat-label">Email Status</span>
               <h3 className="stat-val" style={{ color: "#3b82f6", fontSize: "1.25rem", fontWeight: "bold" }}>
-                {notifSettings?.sms_enabled ? "✓ Enabled" : "✗ Disabled"}
+                {notifSettings?.email_enabled ? "✓ Enabled" : "✗ Disabled"}
               </h3>
               <small style={{ color: "var(--text-light)" }}>Preference: {notifSettings?.notification_preference || "Daily"}</small>
             </div>

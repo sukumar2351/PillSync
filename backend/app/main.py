@@ -239,14 +239,17 @@ async def lifespan(app: FastAPI):
     from sqlalchemy import text
     db = SessionLocal()
     try:
-        db.execute(text("ALTER TABLE patient_profiles ADD COLUMN IF NOT EXISTS sms_enabled BOOLEAN DEFAULT FALSE;"))
+        db.execute(text("ALTER TABLE patient_profiles ADD COLUMN IF NOT EXISTS email_enabled BOOLEAN DEFAULT FALSE;"))
         db.execute(text("ALTER TABLE patient_profiles ADD COLUMN IF NOT EXISTS notification_preference VARCHAR(50) DEFAULT 'browser';"))
         db.execute(text("ALTER TABLE patient_profiles ADD COLUMN IF NOT EXISTS reminder_status VARCHAR(50);"))
         db.execute(text("ALTER TABLE patient_profiles ADD COLUMN IF NOT EXISTS delivery_status VARCHAR(50);"))
-        # New SMS/Email audit columns on notification_settings
-        db.execute(text("ALTER TABLE notification_settings ADD COLUMN IF NOT EXISTS sms_message_sid VARCHAR(50);"))
-        db.execute(text("ALTER TABLE notification_settings ADD COLUMN IF NOT EXISTS sms_error TEXT;"))
-        db.execute(text("ALTER TABLE notification_settings ADD COLUMN IF NOT EXISTS sms_recipient VARCHAR(255);"))
+        
+        # Email settings audit columns on notification_settings
+        db.execute(text("ALTER TABLE notification_settings ADD COLUMN IF NOT EXISTS email_enabled BOOLEAN DEFAULT FALSE;"))
+        db.execute(text("ALTER TABLE notification_settings ADD COLUMN IF NOT EXISTS last_email_sent TIMESTAMP;"))
+        db.execute(text("ALTER TABLE notification_settings ADD COLUMN IF NOT EXISTS email_message_sid VARCHAR(50);"))
+        db.execute(text("ALTER TABLE notification_settings ADD COLUMN IF NOT EXISTS email_error TEXT;"))
+        db.execute(text("ALTER TABLE notification_settings ADD COLUMN IF NOT EXISTS email_recipient VARCHAR(255);"))
         db.execute(text("ALTER TABLE notification_settings ADD COLUMN IF NOT EXISTS notification_email VARCHAR(255);"))
         db.commit()
         app_logger.info("Schema migrations applied successfully.")

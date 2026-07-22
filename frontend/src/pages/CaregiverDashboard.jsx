@@ -345,7 +345,7 @@ const CaregiverDashboard = ({ auth }) => {
                   {patientDetails && (
                     <div style={{ display: "flex", gap: "1rem", marginBottom: "1rem", flexWrap: "wrap" }}>
                       <span className="badge" style={{ background: "#eff6ff", color: "#1e40af", border: "1px solid #bfdbfe" }}>
-                        Email Alerts: {patientDetails.sms_enabled ? "Enabled" : "Disabled"}
+                        Email Alerts: {patientDetails.email_enabled ? "Enabled" : "Disabled"}
                       </span>
                       <span className="badge" style={{ background: "#fef2f2", color: "#991b1b", border: "1px solid #fecaca" }}>
                         Channel: Email / SMTP

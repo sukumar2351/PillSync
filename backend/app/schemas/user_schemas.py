@@ -329,29 +329,25 @@ class AdherenceStatsResponse(BaseModel):
 # ----------------- NOTIFICATION SETTINGS SCHEMAS -----------------
 
 class NotificationSettingsResponse(BaseModel):
-    phone_number: Optional[str] = None
-    phone: Optional[str] = None
     notification_email: Optional[str] = None
-    sms_enabled: bool
+    email_enabled: bool
     browser_notifications: bool
     notification_preference: str
     notification_frequency: str
-    last_sms_sent: Optional[datetime] = None
+    last_email_sent: Optional[datetime] = None
     reminder_status: Optional[str] = None
     delivery_status: Optional[str] = None
-    sms_message_sid: Optional[str] = None
-    sms_error: Optional[str] = None
-    sms_recipient: Optional[str] = None
+    email_message_sid: Optional[str] = None
+    email_error: Optional[str] = None
+    email_recipient: Optional[str] = None
 
     class Config:
         from_attributes = True
 
 
 class NotificationSettingsUpdate(BaseModel):
-    phone_number: Optional[str] = None
-    phone: Optional[str] = None
     notification_email: Optional[str] = None
-    sms_enabled: bool
+    email_enabled: bool
     browser_notifications: bool
     notification_frequency: str
     notification_preference: str

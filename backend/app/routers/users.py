@@ -73,7 +73,7 @@ def get_notification_settings(current_user: User = Depends(get_current_user), db
             settings = NotificationSetting(
                 user_id=current_user.id,
                 notification_email=current_user.email,
-                sms_enabled=False,
+                email_enabled=False,
                 browser_notifications=True,
                 notification_frequency="Daily",
                 delivery_status="Not Configured"
@@ -90,19 +90,17 @@ def get_notification_settings(current_user: User = Depends(get_current_user), db
             db.refresh(settings)
             
         return {
-            "phone_number": settings.phone_number,
-            "phone": settings.phone_number,
             "notification_email": settings.notification_email,
-            "sms_enabled": settings.sms_enabled,
+            "email_enabled": settings.email_enabled,
             "browser_notifications": settings.browser_notifications,
             "notification_preference": settings.notification_frequency,
             "notification_frequency": settings.notification_frequency,
-            "last_sms_sent": settings.last_sms_sent,
-            "reminder_status": "Active" if settings.sms_enabled else "Inactive",
+            "last_email_sent": settings.last_email_sent,
+            "reminder_status": "Active" if settings.email_enabled else "Inactive",
             "delivery_status": settings.delivery_status,
-            "sms_message_sid": settings.sms_message_sid,
-            "sms_error": settings.sms_error,
-            "sms_recipient": settings.sms_recipient,
+            "email_message_sid": settings.email_message_sid,
+            "email_error": settings.email_error,
+            "email_recipient": settings.email_recipient,
         }
     except Exception as e:
         db.rollback()
@@ -145,19 +143,17 @@ def update_notification_settings(payload: NotificationSettingsUpdate, current_us
         print("[*] Settings updated successfully in database.")
         
         return {
-            "phone_number": settings.phone_number,
-            "phone": settings.phone_number,
             "notification_email": settings.notification_email,
-            "sms_enabled": settings.sms_enabled,
+            "email_enabled": settings.email_enabled,
             "browser_notifications": settings.browser_notifications,
             "notification_preference": settings.notification_frequency,
             "notification_frequency": settings.notification_frequency,
-            "last_sms_sent": settings.last_sms_sent,
-            "reminder_status": "Active" if settings.sms_enabled else "Inactive",
+            "last_email_sent": settings.last_email_sent,
+            "reminder_status": "Active" if settings.email_enabled else "Inactive",
             "delivery_status": settings.delivery_status,
-            "sms_message_sid": settings.sms_message_sid,
-            "sms_error": settings.sms_error,
-            "sms_recipient": settings.sms_recipient,
+            "email_message_sid": settings.email_message_sid,
+            "email_error": settings.email_error,
+            "email_recipient": settings.email_recipient,
         }
     except Exception as e:
         db.rollback()
@@ -178,7 +174,7 @@ def send_test_email(current_user: User = Depends(get_current_user), db: Session 
         if not settings:
             settings = NotificationSetting(
                 user_id=current_user.id,
-                sms_enabled=False,
+                email_enabled=False,
                 browser_notifications=True,
                 notification_frequency="Daily",
                 delivery_status="Not Configured"
@@ -187,7 +183,7 @@ def send_test_email(current_user: User = Depends(get_current_user), db: Session 
             db.commit()
             db.refresh(settings)
 
-        recipient_email = current_user.email
+        recipient_email = settings.notification_email or current_user.email
         print(f"[*] Dispatching test email to: {recipient_email}")
         
         subject = "PillSync Notification Test"
@@ -209,24 +205,29 @@ def send_test_email(current_user: User = Depends(get_current_user), db: Session 
 
         try:
             res = send_email(recipient_email, subject, html, plain)
-        except Exception as cred_err:
+        except RuntimeError as cred_err:
             raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=f"Email service is not configured: {cred_err}"
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(cred_err)
+            )
+        except Exception as smtp_err:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"SMTP Server Connection Failed: {smtp_err}"
             )
 
-        settings.last_sms_sent = datetime.utcnow()
-        settings.sms_recipient = res.get("to", recipient_email)
+        settings.last_email_sent = datetime.utcnow()
+        settings.email_recipient = res.get("to", recipient_email)
 
         if res.get("status") == "success":
             settings.delivery_status = res.get("delivery_status", "sent")
-            settings.sms_message_sid = "Gmail-SMTP"
-            settings.sms_error = None
+            settings.email_message_sid = "Gmail-SMTP"
+            settings.email_error = None
             
             test_notif = Notification(
                 user_id=current_user.id,
                 title="Test Email Sent Successfully",
-                message=f"A real test email verification has been sent to {settings.sms_recipient} via Gmail SMTP.",
+                message=f"A real test email verification has been sent to {settings.email_recipient} via Gmail SMTP.",
                 type="sms",
                 is_read=False,
                 created_at=datetime.utcnow()
@@ -234,22 +235,22 @@ def send_test_email(current_user: User = Depends(get_current_user), db: Session 
             db.add(test_notif)
             db.commit()
             
-            print(f"[*] Test Email SUCCESS — To={settings.sms_recipient}")
+            print(f"[*] Test Email SUCCESS — To={settings.email_recipient}")
             return {
                 "message": "Test Email sent successfully!",
                 "delivery_status": settings.delivery_status,
-                "recipient": settings.sms_recipient,
+                "recipient": settings.email_recipient,
                 "provider": "Gmail-SMTP",
             }
         else:
             settings.delivery_status = "failed"
-            settings.sms_error = res.get("error", "Unknown error")
-            settings.sms_message_sid = None
+            settings.email_error = res.get("error", "Unknown error")
+            settings.email_message_sid = None
             
             fail_notif = Notification(
                 user_id=current_user.id,
                 title="Test Email Dispatch Failed",
-                message=f"Attempt to send a test email to {recipient_email} failed. Error: {settings.sms_error}",
+                message=f"Attempt to send a test email to {recipient_email} failed. Error: {settings.email_error}",
                 type="sms",
                 is_read=False,
                 created_at=datetime.utcnow()

@@ -131,8 +131,8 @@ def get_reminders_today(db: Session = Depends(get_db), current_user: User = Depe
         logger.info(f"[Reminders] Creating default NotificationSetting for user_id={current_user.id}")
         settings = NotificationSetting(
             user_id=current_user.id,
-            phone_number=default_phone,
-            sms_enabled=False,
+            notification_email=current_user.email,
+            email_enabled=False,
             browser_notifications=True,
             notification_frequency="Daily",
             delivery_status="Not Configured"
@@ -142,9 +142,9 @@ def get_reminders_today(db: Session = Depends(get_db), current_user: User = Depe
         db.refresh(settings)
 
     logger.info(
-        f"[Reminders] Notification settings: email_enabled={settings.sms_enabled}, "
-        f"email={current_user.email}, "
-        f"last_email_sent={settings.last_sms_sent}"
+        f"[Reminders] Notification settings: email_enabled={settings.email_enabled}, "
+        f"email={settings.notification_email or current_user.email}, "
+        f"last_email_sent={settings.last_email_sent}"
     )
 
     # Fetch all active medicines for the patient
@@ -158,10 +158,10 @@ def get_reminders_today(db: Session = Depends(get_db), current_user: User = Depe
     from app.services.email_service import send_medicine_reminder
 
     # Deduplication: track which (medicine_id, time_of_day) combos got an Email today
-    # We check last_sms_sent date — if it is already today, skip re-sending
+    # We check last_email_sent date — if it is already today, skip re-sending
     email_sent_today = (
-        settings.last_sms_sent is not None
-        and settings.last_sms_sent.date() == today
+        settings.last_email_sent is not None
+        and settings.last_email_sent.date() == today
     )
 
     reminders = []
@@ -182,7 +182,7 @@ def get_reminders_today(db: Session = Depends(get_db), current_user: User = Depe
             # Email dispatch logic
             email_eligible = (
                 reminder_status == "Pending"
-                and settings.sms_enabled
+                and settings.email_enabled
                 and not email_sent_today   # Only send once per calendar day
             )
 
@@ -206,19 +206,19 @@ def get_reminders_today(db: Session = Depends(get_db), current_user: User = Depe
 
                 email_dispatched_count += 1
 
-                # Persist full audit trail in existing columns
-                settings.last_sms_sent = datetime.utcnow()
-                settings.sms_recipient = res.get("to", current_user.email)
+                # Persist full audit trail in Email columns
+                settings.last_email_sent = datetime.utcnow()
+                settings.email_recipient = res.get("to", target_email)
                 if res.get("status") == "success":
                     settings.delivery_status = res.get("delivery_status", "sent")
-                    settings.sms_message_sid = "Gmail-SMTP"
-                    settings.sms_error = None
+                    settings.email_message_sid = "Gmail-SMTP"
+                    settings.email_error = None
                     
                     # Create a database notification for the patient
                     notif = Notification(
                         user_id=current_user.id,
                         title=f"Medicine Reminder: {med.name}",
-                        message=f"Scheduled dose of {med.name} ({med.dosage}) for {sched.time_of_day} was dispatched via Email to {settings.sms_recipient}.",
+                        message=f"Scheduled dose of {med.name} ({med.dosage}) for {sched.time_of_day} was dispatched via Email to {settings.email_recipient}.",
                         type="reminder",
                         is_read=False,
                         created_at=datetime.utcnow()
@@ -226,14 +226,14 @@ def get_reminders_today(db: Session = Depends(get_db), current_user: User = Depe
                     db.add(notif)
                 else:
                     settings.delivery_status = "failed"
-                    settings.sms_error = res.get("error", "Unknown error")
-                    settings.sms_message_sid = None
+                    settings.email_error = res.get("error", "Unknown error")
+                    settings.email_message_sid = None
                     
                     # Create a database notification for the patient about failure
                     notif = Notification(
                         user_id=current_user.id,
                         title=f"Failed Reminder Dispatch: {med.name}",
-                        message=f"Reminder Email dispatch for {med.name} ({sched.time_of_day}) to {current_user.email} failed. Error: {settings.sms_error}",
+                        message=f"Reminder Email dispatch for {med.name} ({sched.time_of_day}) to {target_email} failed. Error: {settings.email_error}",
                         type="system",
                         is_read=False,
                         created_at=datetime.utcnow()
@@ -242,12 +242,12 @@ def get_reminders_today(db: Session = Depends(get_db), current_user: User = Depe
                 db.commit()
                 email_sent_today = True  # Prevent further sends in this request
                 logger.info(f"[Reminders] Email result: status={res.get('status')}, error={res.get('error')}")
-            elif reminder_status == "Pending" and settings.sms_enabled and email_sent_today:
+            elif reminder_status == "Pending" and settings.email_enabled and email_sent_today:
                 logger.info(
                     f"[Reminders] Email skipped for '{med.name}' ({sched.time_of_day}) "
-                    f"— already sent today at {settings.last_sms_sent}"
+                    f"— already sent today at {settings.last_email_sent}"
                 )
-            elif reminder_status == "Pending" and not settings.sms_enabled:
+            elif reminder_status == "Pending" and not settings.email_enabled:
                 logger.info(
                     f"[Reminders] Email skipped for '{med.name}' ({sched.time_of_day}) "
                     f"— Email reminders are disabled for this patient."
