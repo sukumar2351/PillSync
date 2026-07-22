@@ -52,8 +52,10 @@ def send_email(to_email: str, subject: str, html_body: str, plain_body: str = ""
     """
     Core SMTP mail dispatcher with retry and exponential backoff logic.
     """
-    if not (SMTP_USERNAME and SMTP_PASSWORD):
-        raise RuntimeError("Email service is not configured. Please configure EMAIL_ADDRESS and EMAIL_APP_PASSWORD in the .env file.")
+    if not SMTP_USERNAME:
+        raise RuntimeError("Missing EMAIL_ADDRESS configuration in .env file.")
+    if not SMTP_PASSWORD:
+        raise RuntimeError("Missing EMAIL_APP_PASSWORD configuration in .env file.")
 
     logger.info("[Email] ── New dispatch request ────────────────────────────")
     logger.info("[Email] Recipient : %s", to_email)

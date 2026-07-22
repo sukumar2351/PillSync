@@ -268,7 +268,7 @@ def get_reminders_today(db: Session = Depends(get_db), current_user: User = Depe
 
     logger.info(
         f"[Reminders] Returning {len(reminders)} reminder(s). "
-        f"SMS dispatched this request: {sms_dispatched_count}."
+        f"Email dispatched this request: {email_dispatched_count}."
     )
     return reminders
 
