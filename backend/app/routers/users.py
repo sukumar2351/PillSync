@@ -54,14 +54,14 @@ def modify_profile(payload: dict, current_user: User = Depends(get_current_user)
 
 # ----------------- NOTIFICATION SETTINGS ENDPOINTS -----------------
 from app.schemas.user_schemas import NotificationSettingsResponse, NotificationSettingsUpdate
-from app.services.sms_service import send_sms
+from app.services.email_service import send_email
 from app.models.user_models import NotificationSetting
 from datetime import datetime
 import traceback
 
 @router.get("/profile/notifications", response_model=NotificationSettingsResponse)
 def get_notification_settings(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Retrieve notification and SMS settings for the authenticated patient. Auto-creates defaults."""
+    """Retrieve notification and Email settings for the authenticated patient. Auto-creates defaults."""
     print(f"[*] GET /profile/notifications called by user_id: {current_user.id}")
     if current_user.role.name != "patient":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only patients have notification settings.")
@@ -165,21 +165,18 @@ def update_notification_settings(payload: NotificationSettingsUpdate, current_us
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to update settings: {str(e)}")
 
 
-@router.post("/profile/notifications/test-sms")
-def send_test_sms(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Send a test verification SMS to the user's configured mobile number via Twilio (live)."""
-    print(f"[*] POST /profile/notifications/test-sms called by user_id: {current_user.id}")
+@router.post("/profile/notifications/test-email")
+def send_test_email(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Send a test verification email to the user's registered email address."""
+    print(f"[*] POST /profile/notifications/test-email called by user_id: {current_user.id}")
     if current_user.role.name != "patient":
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only patients can send test SMS.")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only patients can send test email.")
         
     try:
         settings = current_user.notification_setting
         if not settings:
-            print(f"[*] Settings row missing during test SMS. Auto-creating...")
-            default_phone = current_user.patient_profile.phone if current_user.patient_profile else None
             settings = NotificationSetting(
                 user_id=current_user.id,
-                phone_number=default_phone,
                 sms_enabled=False,
                 browser_notifications=True,
                 notification_frequency="Daily",
@@ -189,41 +186,46 @@ def send_test_sms(current_user: User = Depends(get_current_user), db: Session = 
             db.commit()
             db.refresh(settings)
 
-        if not settings.phone_number:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Please configure a phone number in Notification Settings before sending a test SMS."
-            )
-
-        print(f"[*] Dispatching LIVE Twilio SMS to: {settings.phone_number}")
-        body = (
-            "Hello! This is a test SMS from PillSync confirming your notification "
-            "configuration is working correctly. You will now receive medicine reminders on this number."
-        )
+        recipient_email = current_user.email
+        print(f"[*] Dispatching test email to: {recipient_email}")
+        
+        subject = "PillSync Notification Test"
+        html = f"""
+        <html>
+          <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b;">
+            <div style="max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+              <h2 style="color: #2563eb; margin-top: 0;">PillSync Verification</h2>
+              <p>Hi {current_user.patient_profile.full_name if current_user.patient_profile else 'Patient'},</p>
+              <p>This is a test verification email from PillSync confirming your email notification system is configured correctly.</p>
+              <p>You will now receive scheduled medicine alerts directly at this email address.</p>
+              <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+              <p style="font-size: 0.8em; color: #94a3b8; text-align: center; margin: 0;">&copy; 2026 PillSync Portal. All rights reserved.</p>
+            </div>
+          </body>
+        </html>
+        """
+        plain = "Hi, this is a test email from PillSync confirming your email notifications are working correctly."
 
         try:
-            res = send_sms(settings.phone_number, body)
-        except RuntimeError as cred_err:
-            # Credentials not configured — return a clear 503 error
+            res = send_email(recipient_email, subject, html, plain)
+        except Exception as cred_err:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=f"SMS service is not configured: {cred_err}"
+                detail=f"Email service is not configured: {cred_err}"
             )
 
-        # Persist full audit trail in database
         settings.last_sms_sent = datetime.utcnow()
-        settings.sms_recipient = res.get("to", settings.phone_number)
+        settings.sms_recipient = res.get("to", recipient_email)
 
         if res.get("status") == "success":
-            settings.delivery_status = res.get("delivery_status", "queued")
-            settings.sms_message_sid = res.get("sid")
+            settings.delivery_status = res.get("delivery_status", "sent")
+            settings.sms_message_sid = "Gmail-SMTP"
             settings.sms_error = None
             
-            # Create a success notification
             test_notif = Notification(
                 user_id=current_user.id,
-                title="Test SMS Sent Successfully",
-                message=f"A real test SMS verification has been queued/delivered to {settings.sms_recipient} via Twilio.",
+                title="Test Email Sent Successfully",
+                message=f"A real test email verification has been sent to {settings.sms_recipient} via Gmail SMTP.",
                 type="sms",
                 is_read=False,
                 created_at=datetime.utcnow()
@@ -231,24 +233,22 @@ def send_test_sms(current_user: User = Depends(get_current_user), db: Session = 
             db.add(test_notif)
             db.commit()
             
-            print(f"[*] Test SMS SUCCESS — SID={settings.sms_message_sid}, Status={settings.delivery_status}")
+            print(f"[*] Test Email SUCCESS — To={settings.sms_recipient}")
             return {
-                "message": "Test SMS sent successfully via Twilio!",
-                "sid": settings.sms_message_sid,
+                "message": "Test Email sent successfully!",
                 "delivery_status": settings.delivery_status,
                 "recipient": settings.sms_recipient,
-                "provider": "Twilio",
+                "provider": "Gmail-SMTP",
             }
         else:
             settings.delivery_status = "failed"
             settings.sms_error = res.get("error", "Unknown error")
             settings.sms_message_sid = None
             
-            # Create a failure notification
             fail_notif = Notification(
                 user_id=current_user.id,
-                title="Test SMS Dispatch Failed",
-                message=f"Attempt to send a test SMS to {settings.phone_number} failed. Error: {settings.sms_error}",
+                title="Test Email Dispatch Failed",
+                message=f"Attempt to send a test email to {recipient_email} failed. Error: {settings.sms_error}",
                 type="sms",
                 is_read=False,
                 created_at=datetime.utcnow()
@@ -256,22 +256,20 @@ def send_test_sms(current_user: User = Depends(get_current_user), db: Session = 
             db.add(fail_notif)
             db.commit()
             
-            error_detail = res.get("error", "Twilio returned a failure status.")
-            print(f"[*] Test SMS FAILED — error: {error_detail}")
+            error_detail = res.get("error", "SMTP returned a failure status.")
+            print(f"[*] Test Email FAILED — error: {error_detail}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"SMS delivery failed: {error_detail}"
+                detail=f"Email delivery failed: {error_detail}"
             )
-
 
     except HTTPException:
         raise
     except Exception as e:
         db.rollback()
-        print(f"[ERROR] POST /profile/notifications/test-sms failed: {str(e)}")
+        print(f"[ERROR] POST /profile/notifications/test-email failed: {str(e)}")
         print(traceback.format_exc())
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to dispatch test SMS: {str(e)}"
+            detail=f"Failed to dispatch test email: {str(e)}"
         )
-

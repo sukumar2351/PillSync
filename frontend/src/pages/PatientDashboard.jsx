@@ -283,10 +283,10 @@ const PatientDashboard = ({ auth }) => {
           {/* Welcome Panel */}
           <div className="welcome-banner card">
             <h2>Welcome back, {profile.full_name || "Patient"}!</h2>
-            <p>Monitor your active reminder notifications, SMS updates, and manage your medicine schedule efficiently.</p>
+            <p>Monitor your active reminder notifications, email updates, and manage your medicine schedule efficiently.</p>
           </div>
 
-          {/* Adherence Stats Metrics & SMS configurations */}
+          {/* Adherence Stats Metrics & Email configurations */}
           <div className="grid grid-cols-4 stats-grid" style={{ marginBottom: "2rem" }}>
             {historyStats && (
               <>
@@ -305,22 +305,22 @@ const PatientDashboard = ({ auth }) => {
               </>
             )}
             
-            {/* SMS Status Panel */}
+            {/* Email Status Panel */}
             <div className="card stat-card" style={{ borderLeft: "4px solid #3b82f6" }}>
-              <span className="stat-label">SMS Status</span>
+              <span className="stat-label">Email Status</span>
               <h3 className="stat-val" style={{ color: "#3b82f6", fontSize: "1.25rem", fontWeight: "bold" }}>
                 {notifSettings?.sms_enabled ? "✓ Enabled" : "✗ Disabled"}
               </h3>
-              <small style={{ color: "var(--text-light)" }}>Preference: {notifSettings?.notification_preference}</small>
+              <small style={{ color: "var(--text-light)" }}>Preference: {notifSettings?.notification_preference || "Daily"}</small>
             </div>
 
             {/* Notification Status Panel */}
             <div className="card stat-card" style={{ borderLeft: "4px solid #f59e0b" }}>
               <span className="stat-label">Delivery Endpoint</span>
-              <h3 className="stat-val" style={{ color: "#f59e0b", fontSize: "1rem", fontWeight: "bold", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                {notifSettings?.phone || "No phone set"}
+              <h3 className="stat-val" style={{ color: "#f59e0b", fontSize: "0.85rem", fontWeight: "bold", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {auth.email || "Registered Email"}
               </h3>
-              <small style={{ color: "var(--text-light)" }}>Twilio status: {notifSettings?.delivery_status || "Pending"}</small>
+              <small style={{ color: "var(--text-light)" }}>SMTP status: {notifSettings?.delivery_status || "Pending"}</small>
             </div>
           </div>
 

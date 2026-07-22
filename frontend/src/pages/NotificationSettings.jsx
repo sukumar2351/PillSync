@@ -4,17 +4,17 @@ import Sidebar from "../components/Sidebar";
 import Navbar from "../components/Navbar";
 
 const NotificationSettings = ({ auth }) => {
-  const [smsEnabled, setSmsEnabled] = useState(false);
+  const [emailEnabled, setEmailEnabled] = useState(false);
   const [browserNotifications, setBrowserNotifications] = useState(true);
   const [notificationFrequency, setNotificationFrequency] = useState("Daily");
   const [phoneNumber, setPhoneNumber] = useState("");
 
-  // SMS status panel fields
-  const [lastSmsSent, setLastSmsSent] = useState("");
+  // Email status panel fields
+  const [lastEmailSent, setLastEmailSent] = useState("");
   const [deliveryStatus, setDeliveryStatus] = useState("");
-  const [messageSid, setMessageSid] = useState("");
-  const [smsRecipient, setSmsRecipient] = useState("");
-  const [smsError, setSmsError] = useState("");
+  const [smtpServer, setSmtpServer] = useState("");
+  const [emailRecipient, setEmailRecipient] = useState("");
+  const [emailError, setEmailError] = useState("");
 
   const [isLoading, setIsLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -35,15 +35,15 @@ const NotificationSettings = ({ auth }) => {
   };
 
   const populateFromData = (data) => {
-    setSmsEnabled(data.sms_enabled ?? false);
+    setEmailEnabled(data.sms_enabled ?? false);
     setBrowserNotifications(data.browser_notifications ?? true);
     setNotificationFrequency(data.notification_frequency || "Daily");
     setPhoneNumber(data.phone_number || data.phone || "");
-    setLastSmsSent(data.last_sms_sent ? new Date(data.last_sms_sent).toLocaleString() : "No SMS sent yet");
+    setLastEmailSent(data.last_sms_sent ? new Date(data.last_sms_sent).toLocaleString() : "No Email sent yet");
     setDeliveryStatus(data.delivery_status || "Not configured");
-    setMessageSid(data.sms_message_sid || "");
-    setSmsRecipient(data.sms_recipient || "");
-    setSmsError(data.sms_error || "");
+    setSmtpServer(data.sms_message_sid || "Gmail-SMTP");
+    setEmailRecipient(data.sms_recipient || auth.email || "");
+    setEmailError(data.sms_error || "");
   };
 
   const fetchSettings = async () => {
@@ -68,17 +68,11 @@ const NotificationSettings = ({ auth }) => {
     setSuccessMsg("");
     setErrorMsg("");
 
-    if (smsEnabled && !phoneNumber) {
-      setErrorMsg("Phone number is required when SMS reminders are enabled.");
-      setSaving(false);
-      return;
-    }
-
     try {
       const payload = {
         phone_number: phoneNumber || null,
         phone: phoneNumber || null,
-        sms_enabled: smsEnabled,
+        sms_enabled: emailEnabled,
         browser_notifications: browserNotifications,
         notification_frequency: notificationFrequency,
         notification_preference: notificationFrequency,
@@ -95,34 +89,28 @@ const NotificationSettings = ({ auth }) => {
     }
   };
 
-  const handleTestSMS = async () => {
-    console.log("[NotificationSettings] Send Test SMS clicked.");
+  const handleTestEmail = async () => {
+    console.log("[NotificationSettings] Send Test Email clicked.");
     setTesting(true);
     setSuccessMsg("");
     setErrorMsg("");
 
-    if (!phoneNumber) {
-      setErrorMsg("Please enter and save a valid phone number before sending a test SMS.");
-      setTesting(false);
-      return;
-    }
-
     try {
-      console.log("[NotificationSettings] POST test-sms...");
-      const res = await medicineService.sendTestSMS();
-      console.log("[NotificationSettings] Test SMS response:", res);
+      console.log("[NotificationSettings] POST test-email...");
+      const res = await medicineService.sendTestEmail();
+      console.log("[NotificationSettings] Test Email response:", res);
 
       setSuccessMsg(
-        `✓ Real SMS sent via Twilio! SID: ${res.sid || "—"} | Status: ${res.delivery_status || "queued"} | To: ${res.recipient || phoneNumber}`
+        `✓ Real verification email sent successfully! Status: ${res.delivery_status || "sent"} | To: ${res.recipient || auth.email}`
       );
-      setMessageSid(res.sid || "");
-      setDeliveryStatus(res.delivery_status || "queued");
-      setSmsRecipient(res.recipient || phoneNumber);
-      setSmsError("");
-      setLastSmsSent(new Date().toLocaleString());
+      setSmtpServer(res.provider || "Gmail-SMTP");
+      setDeliveryStatus(res.delivery_status || "sent");
+      setEmailRecipient(res.recipient || auth.email);
+      setEmailError("");
+      setLastEmailSent(new Date().toLocaleString());
     } catch (err) {
       const parsed = parseErrorMessage(err);
-      setErrorMsg(`SMS failed: ${parsed}`);
+      setErrorMsg(`Email failed: ${parsed}`);
     } finally {
       setTesting(false);
     }
@@ -137,14 +125,13 @@ const NotificationSettings = ({ auth }) => {
     );
   }
 
-  // Determine status badge colour
   const statusOk = ["queued", "sent", "delivered"].includes((deliveryStatus || "").toLowerCase());
 
   return (
     <div className="app-container">
       <Sidebar role={auth.role} email={auth.email} />
       <div className="main-content">
-        <Navbar pageTitle="Notification & SMS Settings" />
+        <Navbar pageTitle="Notification & Email Settings" />
 
         <main className="content-area">
           {successMsg && (
@@ -163,7 +150,7 @@ const NotificationSettings = ({ auth }) => {
             <div className="card col-span-2">
               <h3 className="card-title">Configure Notification Preferences</h3>
               <p style={{ color: "var(--text-light)", fontSize: "0.875rem", marginBottom: "1.5rem" }}>
-                Enable SMS reminders to receive real Twilio SMS messages on your registered mobile number
+                Enable email notifications to receive automatic medicine alerts on your registered email address
                 whenever your medicine schedule is due.
               </p>
 
@@ -172,12 +159,12 @@ const NotificationSettings = ({ auth }) => {
                   <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontWeight: "600", cursor: "pointer" }}>
                     <input
                       type="checkbox"
-                      checked={smsEnabled}
-                      onChange={(e) => setSmsEnabled(e.target.checked)}
+                      checked={emailEnabled}
+                      onChange={(e) => setEmailEnabled(e.target.checked)}
                       style={{ width: "1.2rem", height: "1.2rem" }}
                       disabled={saving || testing}
                     />
-                    Enable SMS Reminders (Twilio Live)
+                    Enable Email Reminders (Gmail SMTP)
                   </label>
 
                   <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontWeight: "600", cursor: "pointer" }}>
@@ -189,15 +176,6 @@ const NotificationSettings = ({ auth }) => {
                       disabled={saving || testing}
                     />
                     Enable Browser Notifications
-                  </label>
-
-                  <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontWeight: "600", color: "var(--text-light)", cursor: "not-allowed" }}>
-                    <input
-                      type="checkbox"
-                      disabled
-                      style={{ width: "1.2rem", height: "1.2rem" }}
-                    />
-                    <span>Enable Email Reminders <small style={{ background: "var(--border-strong)", color: "var(--text-secondary)", padding: "2px 6px", borderRadius: 4, fontSize: "0.65rem", fontWeight: 700 }}>Coming Soon</small></span>
                   </label>
                 </div>
 
@@ -215,18 +193,16 @@ const NotificationSettings = ({ auth }) => {
                 </div>
 
                 <div className="form-group" style={{ marginBottom: "1.5rem" }}>
-                  <label className="form-label">Mobile Number (E.164 Format)</label>
+                  <label className="form-label">Registered Notification Email</label>
                   <input
-                    type="tel"
+                    type="email"
                     className="form-input"
-                    placeholder="e.g. +919988776601 or +19566732072"
-                    value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value)}
-                    required={smsEnabled}
-                    disabled={saving || testing}
+                    value={auth.email}
+                    disabled
+                    style={{ cursor: "not-allowed", opacity: 0.8 }}
                   />
                   <small style={{ color: "var(--text-light)" }}>
-                    Format: +[Country Code][Number] — e.g. +919988776601 (India) or +12025550123 (USA)
+                    Reminders are sent directly to your account email address. To update this, modify your profile settings.
                   </small>
                 </div>
 
@@ -236,20 +212,20 @@ const NotificationSettings = ({ auth }) => {
                   </button>
                   <button
                     type="button"
-                    onClick={handleTestSMS}
+                    onClick={handleTestEmail}
                     className="btn btn-secondary"
-                    disabled={saving || testing || !phoneNumber}
-                    title={!phoneNumber ? "Enter a phone number first" : "Send a real test SMS via Twilio"}
+                    disabled={saving || testing}
+                    title="Send a real test email via Gmail SMTP"
                   >
-                    {testing ? "Sending via Twilio..." : "Send Test SMS"}
+                    {testing ? "Sending via SMTP..." : "Send Test Email"}
                   </button>
                 </div>
               </form>
             </div>
 
-            {/* ── Twilio Status Panel ── */}
+            {/* ── Email Status Panel ── */}
             <div className="card col-span-1" style={{ background: "#f8fafc", borderColor: "#e2e8f0" }}>
-              <h3 className="card-title" style={{ color: "var(--text-primary)" }}>Twilio SMS Status</h3>
+              <h3 className="card-title" style={{ color: "var(--text-primary)" }}>Gmail SMTP Status</h3>
 
               <div style={{ marginTop: "1rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
                 <div>
@@ -259,31 +235,31 @@ const NotificationSettings = ({ auth }) => {
                   </span>
                 </div>
 
-                {messageSid && (
+                {smtpServer && (
                   <div>
-                    <span className="info-label-block" style={{ fontSize: "0.75rem", color: "var(--text-light)", display: "block" }}>Message SID</span>
+                    <span className="info-label-block" style={{ fontSize: "0.75rem", color: "var(--text-light)", display: "block" }}>Mail Server</span>
                     <code style={{ fontSize: "0.8rem", background: "#e2e8f0", padding: "2px 6px", borderRadius: "4px", wordBreak: "break-all" }}>
-                      {messageSid}
+                      {smtpServer}
                     </code>
                   </div>
                 )}
 
-                {smsRecipient && (
+                {emailRecipient && (
                   <div>
                     <span className="info-label-block" style={{ fontSize: "0.75rem", color: "var(--text-light)", display: "block" }}>Last Sent To</span>
-                    <span style={{ fontSize: "0.9rem" }}>{smsRecipient}</span>
+                    <span style={{ fontSize: "0.9rem" }}>{emailRecipient}</span>
                   </div>
                 )}
 
                 <div>
-                  <span className="info-label-block" style={{ fontSize: "0.75rem", color: "var(--text-light)", display: "block" }}>Last SMS Time</span>
-                  <span style={{ fontSize: "0.85rem", fontFamily: "monospace" }}>{lastSmsSent}</span>
+                  <span className="info-label-block" style={{ fontSize: "0.75rem", color: "var(--text-light)", display: "block" }}>Last Email Time</span>
+                  <span style={{ fontSize: "0.85rem", fontFamily: "monospace" }}>{lastEmailSent}</span>
                 </div>
 
-                {smsError && (
+                {emailError && (
                   <div>
                     <span className="info-label-block" style={{ fontSize: "0.75rem", color: "var(--text-light)", display: "block" }}>Last Error</span>
-                    <span style={{ fontSize: "0.8rem", color: "#dc2626", wordBreak: "break-word" }}>{smsError}</span>
+                    <span style={{ fontSize: "0.8rem", color: "#dc2626", wordBreak: "break-word" }}>{emailError}</span>
                   </div>
                 )}
               </div>

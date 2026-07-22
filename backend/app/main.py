@@ -27,7 +27,7 @@ def configure_logging():
       - Root logger (INFO)
       - uvicorn / uvicorn.access / uvicorn.error
       - sqlalchemy.engine (WARNING — change to INFO to see SQL queries)
-      - sms_service (DEBUG — all SMS activity)
+      - email_service (DEBUG — all Email activity)
       - pillsync (our application namespace)
     """
     log_config = {
@@ -84,8 +84,8 @@ def configure_logging():
                 "handlers": ["console"],
                 "propagate": False,
             },
-            # Full debug for our SMS service
-            "sms_service": {
+            # Full debug for our Email service
+            "email_service": {
                 "level": "DEBUG",
                 "handlers": ["console"],
                 "propagate": False,

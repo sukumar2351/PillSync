@@ -157,8 +157,8 @@ export const medicineService = {
     return response.data;
   },
 
-  sendTestSMS: async () => {
-    const response = await api.post("/users/profile/notifications/test-sms");
+  sendTestEmail: async () => {
+    const response = await api.post("/users/profile/notifications/test-email");
     return response.data;
   },
 };

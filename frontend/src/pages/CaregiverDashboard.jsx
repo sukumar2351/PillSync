@@ -345,13 +345,13 @@ const CaregiverDashboard = ({ auth }) => {
                   {patientDetails && (
                     <div style={{ display: "flex", gap: "1rem", marginBottom: "1rem", flexWrap: "wrap" }}>
                       <span className="badge" style={{ background: "#eff6ff", color: "#1e40af", border: "1px solid #bfdbfe" }}>
-                        SMS Alerts: {patientDetails.sms_enabled ? "Enabled" : "Disabled"}
+                        Email Alerts: {patientDetails.sms_enabled ? "Enabled" : "Disabled"}
                       </span>
                       <span className="badge" style={{ background: "#fef2f2", color: "#991b1b", border: "1px solid #fecaca" }}>
-                        Channel: {patientDetails.notification_preference}
+                        Channel: Email / SMTP
                       </span>
                       <span className="badge" style={{ background: "#fdf2f8", color: "#9d174d", border: "1px solid #fbcfe8" }}>
-                        Active Number: {patientDetails.phone}
+                        Active: Registered Account Email
                       </span>
                     </div>
                   )}

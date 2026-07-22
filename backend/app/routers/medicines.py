@@ -142,9 +142,9 @@ def get_reminders_today(db: Session = Depends(get_db), current_user: User = Depe
         db.refresh(settings)
 
     logger.info(
-        f"[Reminders] Notification settings: sms_enabled={settings.sms_enabled}, "
-        f"phone={settings.phone_number or 'NOT SET'}, "
-        f"last_sms_sent={settings.last_sms_sent}"
+        f"[Reminders] Notification settings: email_enabled={settings.sms_enabled}, "
+        f"email={current_user.email}, "
+        f"last_email_sent={settings.last_sms_sent}"
     )
 
     # Fetch all active medicines for the patient
@@ -155,17 +155,17 @@ def get_reminders_today(db: Session = Depends(get_db), current_user: User = Depe
     ).all()
     logger.info(f"[Reminders] Found {len(medicines)} active medicine(s) for today.")
 
-    from app.services.sms_service import send_reminder
+    from app.services.email_service import send_medicine_reminder
 
-    # Deduplication: track which (medicine_id, time_of_day) combos got an SMS today
+    # Deduplication: track which (medicine_id, time_of_day) combos got an Email today
     # We check last_sms_sent date — if it is already today, skip re-sending
-    sms_sent_today = (
+    email_sent_today = (
         settings.last_sms_sent is not None
         and settings.last_sms_sent.date() == today
     )
 
     reminders = []
-    sms_dispatched_count = 0
+    email_dispatched_count = 0
 
     for med in medicines:
         for sched in med.reminder_schedules:
@@ -179,46 +179,45 @@ def get_reminders_today(db: Session = Depends(get_db), current_user: User = Depe
 
             reminder_status = logged.status if logged else "Pending"
 
-            # SMS dispatch logic
-            sms_eligible = (
+            # Email dispatch logic
+            email_eligible = (
                 reminder_status == "Pending"
                 and settings.sms_enabled
-                and settings.phone_number
-                and not sms_sent_today   # Only send once per calendar day
+                and not email_sent_today   # Only send once per calendar day
             )
 
-            if sms_eligible:
+            if email_eligible:
                 logger.info(
-                    f"[Reminders] Dispatching LIVE Twilio SMS for medicine='{med.name}' "
-                    f"({sched.time_of_day}) to {settings.phone_number}"
+                    f"[Reminders] Dispatching LIVE Email Reminder for medicine='{med.name}' "
+                    f"({sched.time_of_day}) to {current_user.email}"
                 )
                 try:
-                    res = send_reminder(
+                    res = send_medicine_reminder(
                         patient_name,
                         med.name,
                         med.dosage,
                         sched.time_of_day,
-                        settings.phone_number
+                        current_user.email
                     )
-                except RuntimeError as cred_err:
-                    logger.error(f"[Reminders] SMS skipped — credentials not configured: {cred_err}")
+                except Exception as cred_err:
+                    logger.error(f"[Reminders] Email skipped — configuration failure: {cred_err}")
                     res = {"status": "failed", "error": str(cred_err)}
 
-                sms_dispatched_count += 1
+                email_dispatched_count += 1
 
-                # Persist full audit trail
+                # Persist full audit trail in existing columns
                 settings.last_sms_sent = datetime.utcnow()
-                settings.sms_recipient = res.get("to", settings.phone_number)
+                settings.sms_recipient = res.get("to", current_user.email)
                 if res.get("status") == "success":
-                    settings.delivery_status = res.get("delivery_status", "queued")
-                    settings.sms_message_sid = res.get("sid")
+                    settings.delivery_status = res.get("delivery_status", "sent")
+                    settings.sms_message_sid = "Gmail-SMTP"
                     settings.sms_error = None
                     
                     # Create a database notification for the patient
                     notif = Notification(
                         user_id=current_user.id,
                         title=f"Medicine Reminder: {med.name}",
-                        message=f"Scheduled dose of {med.name} ({med.dosage}) for {sched.time_of_day} was dispatched via SMS to {settings.sms_recipient}.",
+                        message=f"Scheduled dose of {med.name} ({med.dosage}) for {sched.time_of_day} was dispatched via Email to {settings.sms_recipient}.",
                         type="reminder",
                         is_read=False,
                         created_at=datetime.utcnow()
@@ -233,25 +232,24 @@ def get_reminders_today(db: Session = Depends(get_db), current_user: User = Depe
                     notif = Notification(
                         user_id=current_user.id,
                         title=f"Failed Reminder Dispatch: {med.name}",
-                        message=f"Reminder SMS dispatch for {med.name} ({sched.time_of_day}) to {settings.phone_number} failed. Error: {settings.sms_error}",
+                        message=f"Reminder Email dispatch for {med.name} ({sched.time_of_day}) to {current_user.email} failed. Error: {settings.sms_error}",
                         type="system",
                         is_read=False,
                         created_at=datetime.utcnow()
                     )
                     db.add(notif)
-
                 db.commit()
-                sms_sent_today = True  # Prevent further sends in this request
-                logger.info(f"[Reminders] SMS result: status={res.get('status')}, SID={res.get('sid')}, error={res.get('error')}")
-            elif reminder_status == "Pending" and settings.sms_enabled and sms_sent_today:
+                email_sent_today = True  # Prevent further sends in this request
+                logger.info(f"[Reminders] Email result: status={res.get('status')}, error={res.get('error')}")
+            elif reminder_status == "Pending" and settings.sms_enabled and email_sent_today:
                 logger.info(
-                    f"[Reminders] SMS skipped for '{med.name}' ({sched.time_of_day}) "
+                    f"[Reminders] Email skipped for '{med.name}' ({sched.time_of_day}) "
                     f"— already sent today at {settings.last_sms_sent}"
                 )
             elif reminder_status == "Pending" and not settings.sms_enabled:
                 logger.info(
-                    f"[Reminders] SMS skipped for '{med.name}' ({sched.time_of_day}) "
-                    f"— SMS reminders are disabled for this patient."
+                    f"[Reminders] Email skipped for '{med.name}' ({sched.time_of_day}) "
+                    f"— Email reminders are disabled for this patient."
                 )
 
             reminders.append({

@@ -8,7 +8,7 @@ PillSync is a healthcare management system designed to reduce medication non-adh
 
 PillSync provides an end-to-end medicine reminder workflow:
 - **Medicine Management**: Full CRUD capabilities allowing patients to specify names, quantities, frequencies, dosage timeslots, and physical parameters.
-- **Reminder & Dispatch Engine**: Dynamic local browser push notifications and real-time SMS reminder dispatches powered by **Twilio**.
+- **Reminder & Dispatch Engine**: Dynamic local browser push notifications and real-time Email reminder dispatches powered by **Gmail SMTP**.
 - **Medication Adherence History**: Automated patient taken/missed audit logs with weekly/daily compliance reports.
 - **Linked Caregiver Viewports**: Interactive dashboards allowing caregivers to track medication histories and monitor adherence trends.
 - **Premium User Interfaces**: Highly responsive visual design styled in premium Glassmorphism, 3D interactive tilt cards, and springy easing animations.
@@ -33,7 +33,7 @@ PillSync provides an end-to-end medicine reminder workflow:
 - **Pydantic**: Data parsing and schema validation rules.
 - **Psycopg2**: PostgreSQL database driver adapter.
 - **Jose & Passlib [Bcrypt]**: Secure password hashing and JWT signing.
-- **Twilio SDK**: Dispatch client for real-time mobile SMS reminders.
+- **smtplib / email**: Dispatch client for real-time Email reminders.
 
 ### Database
 - **PostgreSQL**: Enterprise-grade relational database management system.
@@ -55,7 +55,7 @@ graph TD
     subgraph Backend [FastAPI Service]
         App[main.py Entrypoint]
         Routers[API Routers auth/users/medicines/notifications]
-        Services[Business Logic & SMS Service]
+        Services[Business Logic & Email Service]
         Security[security.py bcrypt & JWT]
         ORM[SQLAlchemy Models]
     end
@@ -88,14 +88,14 @@ graph TD
 
 ## Reminder & Alert Systems
 - **Browser Reminders**: Receive real-time audio and visual popups in the browser when doses are due.
-- **Twilio SMS Integrations**: Dispatches SMS reminder messages to patient-registered numbers with validation.
-- **Notification Drawer**: An animated sliding right panel listing logs for reminders, SMS status, and warnings.
-- **Configurable Settings**: Toggle browser notifications, SMS reminders, and configure notification timings.
+- **Email Reminders**: Dispatches email reminder messages to patient-registered accounts via SMTP.
+- **Notification Drawer**: An animated sliding right panel listing logs for reminders, Email status, and warnings.
+- **Configurable Settings**: Toggle browser notifications, Email reminders, and configure notification timings.
 
 ## Adherence & Medication History
 - **Taken/Missed Logging**: Patients record doses taken, missed, or snoozed.
 - **Compliance Dashboards**: Displays weekly visual trends and percentage metrics.
-- **Caregiver Linking**: Caregivers track linked patient compliance metrics in real-time.
+- **Caregiver Linking**: Caregivers track linked patient compliance trends in real-time.
 
 ---
 
@@ -179,7 +179,7 @@ erDiagram
 4. **`caregiver_profiles`**: Personal profile metadata linked to caregiver accounts.
 5. **`medicines`**: Tracks medication items, quantities, schedules, and active state.
 6. **`medication_history`**: Audit trail of taken/missed statuses linked to medicines.
-7. **`notifications`**: History log of system notices, browser notifications, and SMS triggers.
+7. **`notifications`**: History log of system notices, browser notifications, and Email triggers.
 
 ---
 
@@ -197,17 +197,18 @@ erDiagram
 - **GET `/users/profile`**: Returns patient/caregiver profile metadata.
 - **PUT `/users/profile`**: Update personal details (validations check age range [0-120], blood group O+, AB-).
 
-### 3. Medicine Management Endpoints (New in M2)
+### 3. Medicine Management Endpoints
 - **POST `/medicines/`**: Create new medication item.
   - *Request JSON*: `{"name": "Aspirin", "dosage": "1 tablet", "timing_slot": "morning", "quantity": 30, "instructions": "After meal"}`
 - **GET `/medicines/`**: Retrieve all active medicines for the patient.
 - **PUT `/medicines/{id}`**: Update medicine details.
 - **DELETE `/medicines/{id}`**: Delete medicine.
 
-### 4. Notification Endpoints (New in M2)
+### 4. Notification Endpoints
 - **GET `/notifications/`**: List system notification logs.
 - **GET `/notifications/unread-count`**: Get unread count.
 - **POST `/notifications/mark-read`**: Mark notifications as read.
+- **POST `/users/profile/notifications/test-email`**: Send a real-time verification test email.
 
 ---
 
@@ -222,12 +223,12 @@ erDiagram
 # 🧪 Testing
 - **Backend Testing**: Verification scripts check SQLAlchemy model migrations, relational foreign key constraints, and Uvicorn route dispatches.
 - **Frontend Testing**: Build stability verified using Vite client compilers under production configurations.
-- **SMS System Verification**: Twilio delivery logs and E.164 compliance validated.
+- **Email System Verification**: SMTP delivery logs and account variables validated.
 
 ---
 
 # 📝 Milestone 2 Development Summary
-Milestone 2 successfully implements the medication tracking and reminder engine. The backend routes are completed using FastAPI and SQLAlchemy relationships, enabling real-time Postgres persistence for notification logs and taken compliance events. The user interface has been upgraded with Framer Motion animations, a sticky glassmorphic navigation header, a search widget, and a right-sliding notifications drawer.
+Milestone 2 successfully implements the medication tracking and reminder engine. The backend routes are completed using FastAPI and SQLAlchemy relationships, enabling real-time Postgres persistence for notification logs and taken compliance events. The user interface has been upgraded with Framer Motion animations, a sticky glassmorphic navigation header, a search widget, and a right-sliding notifications drawer. The Twilio SMS reminder engine has been fully migrated to a secure Gmail SMTP Email dispatch system.
 
 ---
 
@@ -257,7 +258,7 @@ PillSync/
 │   │   │   ├── auth_service.py
 │   │   │   ├── user_service.py
 │   │   │   ├── medicine_service.py
-│   │   │   └── sms_service.py
+│   │   │   └── email_service.py
 │   │   ├── utils/              # JWT and hashing utils
 │   │   │   └── security.py
 │   │   ├── config.py           # Configuration loading
@@ -325,7 +326,7 @@ git push origin milestone-2
 - [x] Medicine Management CRUD APIs
 - [x] Dosage Timelines & Scheduling (Morning/Afternoon/Night)
 - [x] Browser Push Reminders & Settings UI
-- [x] Twilio SMS Notification Services
+- [x] Gmail SMTP Email Notification Services
 - [x] Postgres Medication History Logs
 - [x] Patient Dashboard Compliance Trends
 - [x] Caregiver linked viewports
