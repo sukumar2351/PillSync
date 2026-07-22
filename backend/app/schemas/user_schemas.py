@@ -329,7 +329,8 @@ class AdherenceStatsResponse(BaseModel):
 # ----------------- NOTIFICATION SETTINGS SCHEMAS -----------------
 
 class NotificationSettingsResponse(BaseModel):
-    notification_email: Optional[str] = None
+    use_primary_email: bool
+    reminder_email: Optional[str] = None
     email_enabled: bool
     browser_notifications: bool
     notification_preference: str
@@ -346,11 +347,17 @@ class NotificationSettingsResponse(BaseModel):
 
 
 class NotificationSettingsUpdate(BaseModel):
-    notification_email: Optional[str] = None
+    use_primary_email: bool
+    reminder_email: Optional[str] = None
     email_enabled: bool
     browser_notifications: bool
     notification_frequency: str
     notification_preference: str
+
+
+class EmailUpdateRequest(BaseModel):
+    new_email: EmailStr
+    password: str
 
 
 

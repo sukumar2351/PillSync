@@ -1,15 +1,21 @@
 import React, { useEffect, useState } from "react";
-import { medicineService } from "../services/api";
+import { medicineService, userService } from "../services/api";
 import Sidebar from "../components/Sidebar";
 import Navbar from "../components/Navbar";
 
-const NotificationSettings = ({ auth }) => {
+const NotificationSettings = ({ auth, setAuth }) => {
   const [emailEnabled, setEmailEnabled] = useState(false);
   const [browserNotifications, setBrowserNotifications] = useState(true);
   const [notificationFrequency, setNotificationFrequency] = useState("Daily");
-  const [notificationEmail, setNotificationEmail] = useState("");
-  const [isEditingEmail, setIsEditingEmail] = useState(false);
-  const [tempEmail, setTempEmail] = useState("");
+  
+  // New States for use_primary_email and reminder_email
+  const [usePrimaryEmail, setUsePrimaryEmail] = useState(true);
+  const [reminderEmail, setReminderEmail] = useState("");
+  
+  // States for editing Primary Email
+  const [isEditingPrimaryEmail, setIsEditingPrimaryEmail] = useState(false);
+  const [newPrimaryEmail, setNewPrimaryEmail] = useState(auth.email || "");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
   // Email status panel fields
   const [lastEmailSent, setLastEmailSent] = useState("");
@@ -21,10 +27,13 @@ const NotificationSettings = ({ auth }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [updatingEmail, setUpdatingEmail] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+  const [emailUpdateSuccess, setEmailUpdateSuccess] = useState("");
+  const [emailUpdateError, setEmailUpdateError] = useState("");
 
-  // Safely parse error details to prevent JSX object-rendering crashes
+  // Safely parse error details
   const parseErrorMessage = (err) => {
     console.error("[NotificationSettings] Request failed:", err);
     if (err.response?.data?.detail) {
@@ -40,13 +49,12 @@ const NotificationSettings = ({ auth }) => {
     setEmailEnabled(data.email_enabled ?? false);
     setBrowserNotifications(data.browser_notifications ?? true);
     setNotificationFrequency(data.notification_frequency || "Daily");
-    const dbEmail = data.notification_email || auth.email || "";
-    setNotificationEmail(dbEmail);
-    setTempEmail(dbEmail);
+    setUsePrimaryEmail(data.use_primary_email ?? true);
+    setReminderEmail(data.reminder_email || "");
     setLastEmailSent(data.last_email_sent ? new Date(data.last_email_sent).toLocaleString() : "No Email sent yet");
     setDeliveryStatus(data.delivery_status || "Not configured");
     setSmtpServer(data.email_message_sid || "Gmail-SMTP");
-    setEmailRecipient(data.email_recipient || dbEmail);
+    setEmailRecipient(data.email_recipient || "");
     setEmailError(data.email_error || "");
   };
 
@@ -63,7 +71,10 @@ const NotificationSettings = ({ auth }) => {
     }
   };
 
-  useEffect(() => { fetchSettings(); }, []);
+  useEffect(() => {
+    fetchSettings();
+    setNewPrimaryEmail(auth.email || "");
+  }, [auth.email]);
 
   const handleSave = async (e) => {
     if (e) e.preventDefault();
@@ -72,16 +83,17 @@ const NotificationSettings = ({ auth }) => {
     setSuccessMsg("");
     setErrorMsg("");
 
-    // Validate email if enabled
-    if (emailEnabled && !notificationEmail) {
-      setErrorMsg("A valid notification email is required when email reminders are enabled.");
+    // Validate custom email if usePrimaryEmail is OFF
+    if (emailEnabled && !usePrimaryEmail && !reminderEmail) {
+      setErrorMsg("A custom reminder email is required when Email Reminders are enabled and 'Use Primary Email' is toggled off.");
       setSaving(false);
       return;
     }
 
     try {
       const payload = {
-        notification_email: notificationEmail || auth.email,
+        use_primary_email: usePrimaryEmail,
+        reminder_email: usePrimaryEmail ? auth.email : reminderEmail,
         email_enabled: emailEnabled,
         browser_notifications: browserNotifications,
         notification_frequency: notificationFrequency,
@@ -92,7 +104,6 @@ const NotificationSettings = ({ auth }) => {
       console.log("[NotificationSettings] PUT response:", updated);
       setSuccessMsg("Notification preferences saved successfully.");
       populateFromData(updated);
-      setIsEditingEmail(false);
     } catch (err) {
       setErrorMsg(`Save failed: ${parseErrorMessage(err)}`);
     } finally {
@@ -112,11 +123,11 @@ const NotificationSettings = ({ auth }) => {
       console.log("[NotificationSettings] Test Email response:", res);
 
       setSuccessMsg(
-        `✓ Real verification email sent successfully! Status: ${res.delivery_status || "sent"} | To: ${res.recipient || notificationEmail}`
+        `✓ Real verification email sent successfully! Status: ${res.delivery_status || "sent"} | To: ${res.recipient}`
       );
       setSmtpServer(res.provider || "Gmail-SMTP");
       setDeliveryStatus(res.delivery_status || "sent");
-      setEmailRecipient(res.recipient || notificationEmail);
+      setEmailRecipient(res.recipient);
       setEmailError("");
       setLastEmailSent(new Date().toLocaleString());
     } catch (err) {
@@ -127,10 +138,42 @@ const NotificationSettings = ({ auth }) => {
     }
   };
 
-  const handleUseProfileEmail = () => {
-    setNotificationEmail(auth.email);
-    setTempEmail(auth.email);
-    setSuccessMsg("Reset to your account login email. Make sure to click Save Preferences!");
+  const handleUpdatePrimaryEmail = async (e) => {
+    e.preventDefault();
+    setEmailUpdateError("");
+    setEmailUpdateSuccess("");
+    setUpdatingEmail(true);
+
+    // Simple format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(newPrimaryEmail)) {
+      setEmailUpdateError("Invalid email format.");
+      setUpdatingEmail(false);
+      return;
+    }
+
+    if (!confirmPassword) {
+      setEmailUpdateError("Current password is required to update email address.");
+      setUpdatingEmail(false);
+      return;
+    }
+
+    try {
+      const res = await userService.updateEmail(newPrimaryEmail, confirmPassword);
+      setEmailUpdateSuccess("Primary Email updated successfully!");
+      setIsEditingPrimaryEmail(false);
+      setConfirmPassword("");
+      
+      // Update global context & localStorage
+      localStorage.setItem("email", newPrimaryEmail);
+      if (setAuth) {
+        setAuth((prev) => ({ ...prev, email: newPrimaryEmail }));
+      }
+    } catch (err) {
+      setEmailUpdateError(parseErrorMessage(err));
+    } finally {
+      setUpdatingEmail(false);
+    }
   };
 
   if (isLoading) {
@@ -167,10 +210,101 @@ const NotificationSettings = ({ auth }) => {
             <div className="card col-span-2">
               <h3 className="card-title">Configure Notification Preferences</h3>
               <p style={{ color: "var(--text-light)", fontSize: "0.875rem", marginBottom: "1.5rem" }}>
-                Enable email notifications to receive automatic medicine alerts on your registered email address
+                Enable email notifications to receive automatic medicine alerts on your primary account email address
                 whenever your medicine schedule is due.
               </p>
 
+              {/* Primary Email Editor */}
+              <div className="form-group" style={{ background: "var(--bg-secondary)", padding: "1.25rem", borderRadius: "12px", border: "1px solid var(--border)", marginBottom: "1.5rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+                  <label className="form-label" style={{ margin: 0, fontWeight: "600" }}>Primary Account Email</label>
+                  {!isEditingPrimaryEmail && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNewPrimaryEmail(auth.email || "");
+                        setConfirmPassword("");
+                        setEmailUpdateError("");
+                        setEmailUpdateSuccess("");
+                        setIsEditingPrimaryEmail(true);
+                      }}
+                      className="btn-link"
+                      style={{ fontSize: "0.85rem", background: "none", border: "none", color: "var(--primary-color)", cursor: "pointer", fontWeight: "bold" }}
+                    >
+                      ✏️ Edit
+                    </button>
+                  )}
+                </div>
+
+                {emailUpdateSuccess && (
+                  <div className="alert alert-success" style={{ fontSize: "0.8rem", padding: "6px 12px", marginBottom: "0.75rem" }}>
+                    {emailUpdateSuccess}
+                  </div>
+                )}
+                {emailUpdateError && (
+                  <div className="alert alert-danger" style={{ fontSize: "0.8rem", padding: "6px 12px", marginBottom: "0.75rem" }}>
+                    {emailUpdateError}
+                  </div>
+                )}
+
+                {isEditingPrimaryEmail ? (
+                  <form onSubmit={handleUpdatePrimaryEmail} style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                    <div>
+                      <span style={{ fontSize: "0.75rem", color: "var(--text-light)" }}>New Email Address</span>
+                      <input
+                        type="email"
+                        className="form-input"
+                        value={newPrimaryEmail}
+                        onChange={(e) => setNewPrimaryEmail(e.target.value)}
+                        placeholder="Enter new primary email"
+                        required
+                        disabled={updatingEmail}
+                      />
+                    </div>
+                    <div>
+                      <span style={{ fontSize: "0.75rem", color: "var(--text-light)" }}>Confirm Account Password</span>
+                      <input
+                        type="password"
+                        className="form-input"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="Verify current password"
+                        required
+                        disabled={updatingEmail}
+                      />
+                    </div>
+                    <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.25rem" }}>
+                      <button
+                        type="submit"
+                        className="btn btn-primary"
+                        style={{ padding: "0.4rem 1rem", fontSize: "0.85rem" }}
+                        disabled={updatingEmail}
+                      >
+                        {updatingEmail ? "Updating..." : "Update Email"}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        style={{ padding: "0.4rem 1rem", fontSize: "0.85rem" }}
+                        onClick={() => setIsEditingPrimaryEmail(false)}
+                        disabled={updatingEmail}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <input
+                    type="email"
+                    className="form-input"
+                    value={auth.email || ""}
+                    disabled
+                    style={{ background: "var(--bg-base)", cursor: "not-allowed", opacity: 0.85 }}
+                  />
+                )}
+              </div>
+
+              {/* Main Preferences Form */}
               <form onSubmit={handleSave}>
                 <div className="form-group" style={{ marginBottom: "1.5rem", display: "flex", gap: "2rem", flexWrap: "wrap" }}>
                   <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontWeight: "600", cursor: "pointer" }}>
@@ -196,6 +330,42 @@ const NotificationSettings = ({ auth }) => {
                   </label>
                 </div>
 
+                {/* Primary Email Toggle */}
+                <div className="form-group" style={{ marginBottom: "1.5rem", background: "rgba(0,0,0,0.02)", padding: "1rem", borderRadius: "8px" }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontWeight: "600", cursor: "pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={usePrimaryEmail}
+                      onChange={(e) => setUsePrimaryEmail(e.target.checked)}
+                      style={{ width: "1.1rem", height: "1.1rem" }}
+                      disabled={saving || testing}
+                    />
+                    Use Primary Email for Reminders
+                  </label>
+                  <small style={{ color: "var(--text-light)", display: "block", marginTop: "0.25rem", marginLeft: "1.6rem" }}>
+                    When enabled, reminder alerts are automatically redirected to your primary account email.
+                  </small>
+                </div>
+
+                {/* Optional Custom Email */}
+                {!usePrimaryEmail && (
+                  <div className="form-group" style={{ marginBottom: "1.5rem" }}>
+                    <label className="form-label">Reminder Email</label>
+                    <input
+                      type="email"
+                      className="form-input"
+                      value={reminderEmail}
+                      onChange={(e) => setReminderEmail(e.target.value)}
+                      placeholder="Enter custom reminder email address"
+                      disabled={saving || testing}
+                      required
+                    />
+                    <small style={{ color: "var(--text-light)", marginTop: "0.25rem", display: "block" }}>
+                      Emails will be delivered here for all active medication tracking schedules.
+                    </small>
+                  </div>
+                )}
+
                 <div className="form-group" style={{ marginBottom: "1.25rem" }}>
                   <label className="form-label">Reminder Frequency</label>
                   <select
@@ -207,83 +377,6 @@ const NotificationSettings = ({ auth }) => {
                     <option value="Daily">Daily</option>
                     <option value="Weekly">Weekly</option>
                   </select>
-                </div>
-
-                {/* Editable Registered Notification Email Section */}
-                <div className="form-group" style={{ marginBottom: "1.5rem" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
-                    <label className="form-label" style={{ margin: 0 }}>Registered Notification Email</label>
-                    <div style={{ display: "flex", gap: "0.5rem" }}>
-                      <button
-                        type="button"
-                        onClick={handleUseProfileEmail}
-                        className="btn-link"
-                        style={{ fontSize: "0.75rem", background: "none", border: "none", color: "var(--primary-color)", cursor: "pointer", textDecoration: "underline" }}
-                      >
-                        Use Profile Email
-                      </button>
-                      {!isEditingEmail && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setTempEmail(notificationEmail);
-                            setIsEditingEmail(true);
-                          }}
-                          className="btn-link"
-                          style={{ fontSize: "0.75rem", background: "none", border: "none", color: "var(--primary-color)", cursor: "pointer", fontWeight: "bold" }}
-                        >
-                          ✎ Edit
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {isEditingEmail ? (
-                    <div style={{ display: "flex", gap: "0.5rem" }}>
-                      <input
-                        type="email"
-                        className="form-input"
-                        value={tempEmail}
-                        onChange={(e) => setTempEmail(e.target.value)}
-                        placeholder="Enter notification email address"
-                        style={{ flex: 1 }}
-                        required
-                      />
-                      <button
-                        type="button"
-                        className="btn btn-secondary"
-                        onClick={() => {
-                          setNotificationEmail(tempEmail);
-                          setIsEditingEmail(false);
-                        }}
-                        style={{ padding: "0 1rem" }}
-                      >
-                        Ok
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-secondary"
-                        onClick={() => {
-                          setTempEmail(notificationEmail);
-                          setIsEditingEmail(false);
-                        }}
-                        style={{ padding: "0 1rem", background: "var(--border)" }}
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  ) : (
-                    <input
-                      type="email"
-                      className="form-input"
-                      value={notificationEmail}
-                      disabled
-                      style={{ background: "var(--bg-secondary)", cursor: "not-allowed", opacity: 0.85 }}
-                    />
-                  )}
-                  <small style={{ color: "var(--text-light)", marginTop: "0.25rem", display: "block" }}>
-                    Emails will be delivered here for all active medication tracking schedules.
-                  </small>
                 </div>
 
                 <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
@@ -324,12 +417,12 @@ const NotificationSettings = ({ auth }) => {
                   </div>
                 )}
 
-                {emailRecipient && (
-                  <div>
-                    <span className="info-label-block" style={{ fontSize: "0.75rem", color: "var(--text-light)", display: "block" }}>Registered Email</span>
-                    <span style={{ fontSize: "0.85rem", color: "var(--text-primary)" }}>{emailRecipient}</span>
-                  </div>
-                )}
+                <div>
+                  <span className="info-label-block" style={{ fontSize: "0.75rem", color: "var(--text-light)", display: "block" }}>Recipient Email</span>
+                  <span style={{ fontSize: "0.85rem", color: "var(--text-primary)", wordBreak: "break-all" }}>
+                    {usePrimaryEmail ? auth.email : (reminderEmail || auth.email)}
+                  </span>
+                </div>
 
                 <div>
                   <span className="info-label-block" style={{ fontSize: "0.75rem", color: "var(--text-light)", display: "block" }}>Last Email Sent</span>

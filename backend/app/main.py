@@ -250,7 +250,8 @@ async def lifespan(app: FastAPI):
         db.execute(text("ALTER TABLE notification_settings ADD COLUMN IF NOT EXISTS email_message_sid VARCHAR(50);"))
         db.execute(text("ALTER TABLE notification_settings ADD COLUMN IF NOT EXISTS email_error TEXT;"))
         db.execute(text("ALTER TABLE notification_settings ADD COLUMN IF NOT EXISTS email_recipient VARCHAR(255);"))
-        db.execute(text("ALTER TABLE notification_settings ADD COLUMN IF NOT EXISTS notification_email VARCHAR(255);"))
+        db.execute(text("ALTER TABLE notification_settings ADD COLUMN IF NOT EXISTS use_primary_email BOOLEAN DEFAULT TRUE;"))
+        db.execute(text("ALTER TABLE notification_settings ADD COLUMN IF NOT EXISTS reminder_email VARCHAR(255);"))
         db.commit()
         app_logger.info("Schema migrations applied successfully.")
     except Exception as migration_err:

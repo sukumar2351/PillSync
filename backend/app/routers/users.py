@@ -52,6 +52,37 @@ def modify_profile(payload: dict, current_user: User = Depends(get_current_user)
     return {"message": "Profile updated successfully"}
 
 
+from app.utils.security import verify_password
+from app.schemas.user_schemas import EmailUpdateRequest
+
+@router.put("/profile/email")
+def update_primary_email(payload: EmailUpdateRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Update primary login and account email after verifying password and duplicate checks."""
+    print(f"[*] PUT /users/profile/email called by user_id: {current_user.id} with email: {payload.new_email}")
+    
+    # 1. Verify password
+    if not verify_password(payload.password, current_user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect password confirmation."
+        )
+        
+    # 2. Check duplicate email
+    existing_user = db.query(User).filter(User.email == payload.new_email).first()
+    if existing_user and existing_user.id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email address is already in use by another account."
+        )
+        
+    # 3. Update email in database
+    current_user.email = payload.new_email
+    db.commit()
+    db.refresh(current_user)
+    print(f"[*] Email updated successfully for user_id {current_user.id} to: {payload.new_email}")
+    return {"message": "Primary Email updated successfully", "email": current_user.email}
+
+
 # ----------------- NOTIFICATION SETTINGS ENDPOINTS -----------------
 from app.schemas.user_schemas import NotificationSettingsResponse, NotificationSettingsUpdate
 from app.services.email_service import send_email
@@ -72,7 +103,8 @@ def get_notification_settings(current_user: User = Depends(get_current_user), db
             print(f"[*] Notification settings row missing for user_id {current_user.id}. Creating default...")
             settings = NotificationSetting(
                 user_id=current_user.id,
-                notification_email=current_user.email,
+                use_primary_email=True,
+                reminder_email=current_user.email,
                 email_enabled=False,
                 browser_notifications=True,
                 notification_frequency="Daily",
@@ -83,14 +115,15 @@ def get_notification_settings(current_user: User = Depends(get_current_user), db
             db.refresh(settings)
             print("[*] Default settings row created successfully.")
         
-        # If notification_email is null in DB, populate it with current user email
-        if not settings.notification_email:
-            settings.notification_email = current_user.email
+        # Default reminder email if null
+        if settings.reminder_email is None:
+            settings.reminder_email = current_user.email
             db.commit()
             db.refresh(settings)
             
         return {
-            "notification_email": settings.notification_email,
+            "use_primary_email": settings.use_primary_email,
+            "reminder_email": settings.reminder_email,
             "email_enabled": settings.email_enabled,
             "browser_notifications": settings.browser_notifications,
             "notification_preference": settings.notification_frequency,
@@ -122,19 +155,23 @@ def update_notification_settings(payload: NotificationSettingsUpdate, current_us
             print(f"[*] Settings row missing during update. Creating base row...")
             settings = NotificationSetting(
                 user_id=current_user.id,
-                notification_email=payload.notification_email or current_user.email,
-                sms_enabled=False,
-                browser_notifications=True,
-                notification_frequency="Daily",
+                use_primary_email=payload.use_primary_email,
+                reminder_email=payload.reminder_email or current_user.email,
+                email_enabled=payload.email_enabled,
+                browser_notifications=payload.browser_notifications,
+                notification_frequency=payload.notification_frequency,
                 delivery_status="Not Configured"
             )
             db.add(settings)
             db.flush()
 
-        if payload.notification_email is not None:
-            settings.notification_email = payload.notification_email
+        settings.use_primary_email = payload.use_primary_email
+        if payload.reminder_email is not None:
+            settings.reminder_email = payload.reminder_email
+        else:
+            settings.reminder_email = current_user.email
 
-        settings.sms_enabled = payload.sms_enabled
+        settings.email_enabled = payload.email_enabled
         settings.browser_notifications = payload.browser_notifications
         settings.notification_frequency = payload.notification_frequency
 
@@ -143,7 +180,8 @@ def update_notification_settings(payload: NotificationSettingsUpdate, current_us
         print("[*] Settings updated successfully in database.")
         
         return {
-            "notification_email": settings.notification_email,
+            "use_primary_email": settings.use_primary_email,
+            "reminder_email": settings.reminder_email,
             "email_enabled": settings.email_enabled,
             "browser_notifications": settings.browser_notifications,
             "notification_preference": settings.notification_frequency,
@@ -183,7 +221,7 @@ def send_test_email(current_user: User = Depends(get_current_user), db: Session 
             db.commit()
             db.refresh(settings)
 
-        recipient_email = settings.notification_email or current_user.email
+        recipient_email = current_user.email if (settings.use_primary_email or not settings.reminder_email) else settings.reminder_email
         print(f"[*] Dispatching test email to: {recipient_email}")
         
         subject = "PillSync Notification Test"

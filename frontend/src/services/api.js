@@ -87,6 +87,14 @@ export const userService = {
     const response = await api.put("/users/profile", profileData);
     return response.data;
   },
+
+  updateEmail: async (newEmail, password) => {
+    const response = await api.put("/users/profile/email", {
+      new_email: newEmail,
+      password: password,
+    });
+    return response.data;
+  },
 };
 
 export const adminService = {

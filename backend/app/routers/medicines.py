@@ -131,7 +131,8 @@ def get_reminders_today(db: Session = Depends(get_db), current_user: User = Depe
         logger.info(f"[Reminders] Creating default NotificationSetting for user_id={current_user.id}")
         settings = NotificationSetting(
             user_id=current_user.id,
-            notification_email=current_user.email,
+            use_primary_email=True,
+            reminder_email=current_user.email,
             email_enabled=False,
             browser_notifications=True,
             notification_frequency="Daily",
@@ -143,7 +144,7 @@ def get_reminders_today(db: Session = Depends(get_db), current_user: User = Depe
 
     logger.info(
         f"[Reminders] Notification settings: email_enabled={settings.email_enabled}, "
-        f"email={settings.notification_email or current_user.email}, "
+        f"email={settings.reminder_email or current_user.email}, "
         f"last_email_sent={settings.last_email_sent}"
     )
 
@@ -187,7 +188,7 @@ def get_reminders_today(db: Session = Depends(get_db), current_user: User = Depe
             )
 
             if email_eligible:
-                target_email = settings.notification_email or current_user.email
+                target_email = current_user.email if settings.use_primary_email else (settings.reminder_email or current_user.email)
                 logger.info(
                     f"[Reminders] Dispatching LIVE Email Reminder for medicine='{med.name}' "
                     f"({sched.time_of_day}) to {target_email}"

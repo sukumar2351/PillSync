@@ -228,7 +228,7 @@ erDiagram
 ---
 
 # 📝 Milestone 2 Development Summary
-Milestone 2 successfully implements the medication tracking and reminder engine. The backend routes are completed using FastAPI and SQLAlchemy relationships, enabling real-time Postgres persistence for notification logs and taken compliance events. The user interface has been upgraded with Framer Motion animations, a sticky glassmorphic navigation header, a search widget, and a right-sliding notifications drawer. The Twilio SMS reminder engine has been fully migrated to a secure Gmail SMTP Email dispatch system.
+Milestone 2 successfully implements the medication tracking and reminder engine. The backend routes are completed using FastAPI and SQLAlchemy relationships, enabling real-time Postgres persistence for notification logs and taken compliance events. The user interface has been upgraded with Framer Motion animations, a sticky glassmorphic navigation header, a search widget, and a right-sliding notifications drawer. The Twilio SMS reminder engine has been fully migrated to a secure Gmail SMTP Email dispatch system featuring editable primary account emails and custom reminder toggles.
 
 ---
 
