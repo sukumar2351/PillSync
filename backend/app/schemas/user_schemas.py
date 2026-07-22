@@ -204,3 +204,155 @@ class AdminDashboardResponse(BaseModel):
     active_users: int
     inactive_users: int
     latest_users: List[LatestUserResponse]
+
+
+# ----------------- MEDICINE SCHEMAS -----------------
+from datetime import date
+
+class MedicineCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    dosage: str = Field(..., min_length=1, max_length=50)
+    quantity: int = Field(..., gt=0)
+    frequency: str = Field(..., min_length=1, max_length=50)
+    morning: bool = False
+    afternoon: bool = False
+    night: bool = False
+    food_relation: str = Field(..., description="'Before Food' or 'After Food'")
+    start_date: date
+    end_date: date
+    notes: Optional[str] = None
+
+    @field_validator("food_relation")
+    @classmethod
+    def validate_food_relation(cls, v: str) -> str:
+        allowed = {"Before Food", "After Food"}
+        if v not in allowed:
+            raise ValueError("food_relation must be 'Before Food' or 'After Food'")
+        return v
+
+
+class MedicineUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    dosage: Optional[str] = Field(None, min_length=1, max_length=50)
+    quantity: Optional[int] = Field(None, gt=0)
+    frequency: Optional[str] = Field(None, min_length=1, max_length=50)
+    morning: Optional[bool] = None
+    afternoon: Optional[bool] = None
+    night: Optional[bool] = None
+    food_relation: Optional[str] = None
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    notes: Optional[str] = None
+
+    @field_validator("food_relation")
+    @classmethod
+    def validate_food_relation(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        allowed = {"Before Food", "After Food"}
+        if v not in allowed:
+            raise ValueError("food_relation must be 'Before Food' or 'After Food'")
+        return v
+
+
+class ReminderScheduleResponse(BaseModel):
+    id: int
+    medicine_id: int
+    time_of_day: str
+    scheduled_time: str
+
+    class Config:
+        from_attributes = True
+
+
+class MedicineResponse(BaseModel):
+    id: int
+    user_id: int
+    name: str
+    dosage: str
+    quantity: int
+    frequency: str
+    morning: bool
+    afternoon: bool
+    night: bool
+    food_relation: str
+    start_date: date
+    end_date: date
+    notes: Optional[str] = None
+    created_at: datetime
+    reminder_schedules: List[ReminderScheduleResponse] = []
+
+    class Config:
+        from_attributes = True
+
+
+# ----------------- REMINDER LOG SCHEMAS -----------------
+
+class ReminderLogRequest(BaseModel):
+    status: str = Field(..., description="'Taken', 'Missed', or 'Snoozed'")
+    time_of_day: str = Field(..., description="'Morning', 'Afternoon', 'Night'")
+    scheduled_date: date
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, v: str) -> str:
+        allowed = {"Taken", "Missed", "Snoozed"}
+        if v not in allowed:
+            raise ValueError("status must be 'Taken', 'Missed', or 'Snoozed'")
+        return v
+
+
+class MedicationHistoryResponse(BaseModel):
+    id: int
+    user_id: int
+    medicine_id: Optional[int] = None
+    medicine_name: str
+    dosage: str
+    time_of_day: str
+    status: str
+    action_time: datetime
+    scheduled_date: date
+
+    class Config:
+        from_attributes = True
+
+
+class AdherenceStatsResponse(BaseModel):
+    total_scheduled: int
+    taken_count: int
+    missed_count: int
+    snoozed_count: int
+    adherence_rate: float
+    history: List[MedicationHistoryResponse]
+
+
+# ----------------- NOTIFICATION SETTINGS SCHEMAS -----------------
+
+class NotificationSettingsResponse(BaseModel):
+    phone_number: Optional[str] = None
+    phone: Optional[str] = None
+    sms_enabled: bool
+    browser_notifications: bool
+    notification_preference: str
+    notification_frequency: str
+    last_sms_sent: Optional[datetime] = None
+    reminder_status: Optional[str] = None
+    delivery_status: Optional[str] = None
+    sms_message_sid: Optional[str] = None
+    sms_error: Optional[str] = None
+    sms_recipient: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class NotificationSettingsUpdate(BaseModel):
+    phone_number: Optional[str] = None
+    phone: Optional[str] = None
+    sms_enabled: bool
+    browser_notifications: bool
+    notification_frequency: str
+    notification_preference: str
+
+
+

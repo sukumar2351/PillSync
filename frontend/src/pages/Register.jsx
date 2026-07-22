@@ -1,35 +1,27 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
+import { User, Mail, Lock, Eye, EyeOff, Shield, UserCheck, Heart, Activity, ArrowLeft } from "lucide-react";
 import { authService } from "../services/api";
 
-const Register = () => {
-  const [role, setRole] = useState("patient"); // Default role
+const Register = ({ triggerLoader }) => {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
+  const [role, setRole] = useState("patient"); // 'patient' or 'caregiver'
+  
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const [serverError, setServerError] = useState("");
-  const [successMsg, setSuccessMsg] = useState("");
+  const [success, setSuccess] = useState(false);
 
   const navigate = useNavigate();
 
   const validate = () => {
     const tempErrors = {};
-
-    if (!fullName.trim()) {
-      tempErrors.fullName = "Full name is required";
-    } else if (!/^[a-zA-Z\s]+$/.test(fullName)) {
-      tempErrors.fullName = "Full name can only contain letters and spaces";
-    } else if (fullName.trim().length < 2) {
-      tempErrors.fullName = "Full name must be at least 2 characters";
-    }
-
+    if (!fullName.trim()) tempErrors.fullName = "Full Name is required";
+    
     if (!email) {
       tempErrors.email = "Email address is required";
     } else if (!/\S+@\S+\.\S+/.test(email)) {
@@ -38,16 +30,8 @@ const Register = () => {
 
     if (!password) {
       tempErrors.password = "Password is required";
-    } else {
-      if (password.length < 6) {
-        tempErrors.password = "Password must be at least 6 characters";
-      }
-      if (!/[A-Za-z]/.test(password)) {
-        tempErrors.password = (tempErrors.password || "") + " Must contain at least one letter.";
-      }
-      if (!/\d/.test(password)) {
-        tempErrors.password = (tempErrors.password || "") + " Must contain at least one number.";
-      }
+    } else if (password.length < 6) {
+      tempErrors.password = "Password must be at least 6 characters";
     }
 
     if (password !== confirmPassword) {
@@ -61,7 +45,6 @@ const Register = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setServerError("");
-    setSuccessMsg("");
 
     if (!validate()) return;
 
@@ -72,15 +55,17 @@ const Register = () => {
       } else {
         await authService.registerCaregiver(email, password, fullName);
       }
-      setSuccessMsg("Registration successful! Redirecting to login...");
-      setTimeout(() => {
-        navigate("/login");
-      }, 2000);
+      
+      if (triggerLoader) {
+        triggerLoader(() => setSuccess(true));
+      } else {
+        setSuccess(true);
+      }
     } catch (err) {
       if (err.response && err.response.data && err.response.data.detail) {
         setServerError(err.response.data.detail);
       } else {
-        setServerError("Registration failed. Please check backend connection.");
+        setServerError("Registration failed. Please check your network connection.");
       }
     } finally {
       setIsLoading(false);
@@ -88,298 +73,207 @@ const Register = () => {
   };
 
   return (
-    <div className="auth-wrapper flex-center">
-      <div className="auth-card">
-        <div className="auth-header">
-          <div className="auth-logo">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="brand-icon">
-              <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
-            </svg>
-            <h2>PillSync</h2>
+    <div style={{ display: "flex", minHeight: "100vh", background: "var(--bg-base)", overflow: "hidden" }}>
+      
+      {/* LEFT PANEL */}
+      <div style={{
+        width: "45%",
+        background: "linear-gradient(135deg, #0f0c29, #1a1040, #0c1a35)",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "space-between",
+        padding: "3rem",
+        position: "relative",
+        overflow: "hidden"
+      }} className="register-left-panel">
+        <div style={{ position: "absolute", top: "15%", left: "10%", width: 250, height: 250, borderRadius: "50%", background: "rgba(37,99,235,0.12)", filter: "blur(70px)" }} />
+        <div style={{ position: "absolute", bottom: "15%", right: "10%", width: 200, height: 200, borderRadius: "50%", background: "rgba(6,182,212,0.1)", filter: "blur(60px)" }} />
+
+        <Link to="/" style={{ display: "flex", alignItems: "center", gap: "0.625rem", textDecoration: "none", zIndex: 5 }}>
+          <div style={{
+            width: 36, height: 36, borderRadius: 10,
+            background: "linear-gradient(135deg, #2563EB, #06B6D4)",
+            display: "flex", alignItems: "center", justifyContent: "center"
+          }}>
+            <Activity size={18} color="white" />
           </div>
-          <h3>Create Account</h3>
-          <p>Register below as a patient or a caregiver</p>
+          <span style={{ fontSize: "1.3rem", fontWeight: 800, color: "white", letterSpacing: "-0.03em" }}>
+            PillSync
+          </span>
+        </Link>
+
+        <div style={{ zIndex: 5, margin: "auto 0" }}>
+          <h1 style={{ color: "white", fontSize: "2.5rem", fontWeight: 800, marginBottom: "1rem", letterSpacing: "-0.03em" }}>
+            Join PillSync Today
+          </h1>
+          <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "1.1rem", marginBottom: "2.5rem" }}>
+            Your Health, Our Priority
+          </p>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+            {[
+              { icon: <Shield size={16} />, text: "Secure User Data & Compliance" },
+              { icon: <UserCheck size={16} />, text: "Direct Caregiver Connection Option" },
+              { icon: <Heart size={16} />, text: "Patient Wellness Focus" }
+            ].map((item, idx) => (
+              <div key={idx} style={{ display: "flex", alignItems: "center", gap: "0.75rem", color: "rgba(255,255,255,0.85)" }}>
+                <div style={{ color: "#06B6D4" }}>{item.icon}</div>
+                <span style={{ fontSize: "0.95rem", fontWeight: 500 }}>{item.text}</span>
+              </div>
+            ))}
+          </div>
         </div>
 
-        {serverError && <div className="alert alert-danger">{serverError}</div>}
-        {successMsg && <div className="alert alert-success">{successMsg}</div>}
-
-        <form onSubmit={handleSubmit} noValidate>
-          {/* Role selector tabs */}
-          <div className="role-selector">
-            <button
-              type="button"
-              className={`role-btn ${role === "patient" ? "active" : ""}`}
-              onClick={() => setRole("patient")}
-              disabled={isLoading}
-            >
-              Patient
-            </button>
-            <button
-              type="button"
-              className={`role-btn ${role === "caregiver" ? "active" : ""}`}
-              onClick={() => setRole("caregiver")}
-              disabled={isLoading}
-            >
-              Caregiver
-            </button>
-          </div>
-
-          <div className="form-group">
-            <label className="form-label" htmlFor="name-input">
-              Full Name <span className="required-indicator">*</span>
-            </label>
-            <input
-              id="name-input"
-              type="text"
-              className={`form-input ${errors.fullName ? "is-invalid" : ""}`}
-              placeholder="e.g. Rahul Sharma"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              disabled={isLoading}
-            />
-            {errors.fullName && <div className="form-error-msg">{errors.fullName}</div>}
-          </div>
-
-          <div className="form-group">
-            <label className="form-label" htmlFor="email-input">
-              Email Address <span className="required-indicator">*</span>
-            </label>
-            <input
-              id="email-input"
-              type="email"
-              className={`form-input ${errors.email ? "is-invalid" : ""}`}
-              placeholder="e.g. name@domain.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              disabled={isLoading}
-            />
-            {errors.email && <div className="form-error-msg">{errors.email}</div>}
-          </div>
-
-          <div className="form-group">
-            <label className="form-label" htmlFor="password-input">
-              Password <span className="required-indicator">*</span>
-            </label>
-            <div className="password-wrapper">
-              <input
-                id="password-input"
-                type={showPassword ? "text" : "password"}
-                className={`form-input password-field ${errors.password ? "is-invalid" : ""}`}
-                placeholder="Min. 6 characters, letter & number"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={isLoading}
-              />
-              <button
-                type="button"
-                className="password-toggle-btn"
-                onClick={() => setShowPassword(!showPassword)}
-                disabled={isLoading}
-                tabIndex="-1"
-              >
-                {showPassword ? (
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
-                    <line x1="1" y1="1" x2="23" y2="23"></line>
-                  </svg>
-                ) : (
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                    <circle cx="12" cy="12" r="3"></circle>
-                  </svg>
-                )}
-              </button>
-            </div>
-            {errors.password && <div className="form-error-msg">{errors.password}</div>}
-          </div>
-
-          <div className="form-group">
-            <label className="form-label" htmlFor="confirm-pwd-input">
-              Confirm Password <span className="required-indicator">*</span>
-            </label>
-            <div className="password-wrapper">
-              <input
-                id="confirm-pwd-input"
-                type={showConfirmPassword ? "text" : "password"}
-                className={`form-input password-field ${errors.confirmPassword ? "is-invalid" : ""}`}
-                placeholder="Repeat your password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                disabled={isLoading}
-              />
-              <button
-                type="button"
-                className="password-toggle-btn"
-                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                disabled={isLoading}
-                tabIndex="-1"
-              >
-                {showConfirmPassword ? (
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
-                    <line x1="1" y1="1" x2="23" y2="23"></line>
-                  </svg>
-                ) : (
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                    <circle cx="12" cy="12" r="3"></circle>
-                  </svg>
-                )}
-              </button>
-            </div>
-            {errors.confirmPassword && <div className="form-error-msg">{errors.confirmPassword}</div>}
-          </div>
-
-          <button type="submit" className="btn btn-primary btn-block flex-center" disabled={isLoading} style={{ marginTop: "2rem" }}>
-            {isLoading ? (
-              <>
-                <div className="spinner" style={{ width: "16px", height: "16px", borderWidth: "2px", borderTopColor: "#fff" }} />
-                <span>Registering...</span>
-              </>
-            ) : (
-              `Register as ${role}`
-            )}
-          </button>
-        </form>
-
-        <div className="auth-footer">
-          Already have an account? <Link to="/login" style={{ fontWeight: "600" }}>Sign In</Link>
+        <div style={{ zIndex: 5, display: "flex", justifyContent: "space-between", color: "rgba(255,255,255,0.4)", fontSize: "0.8rem" }}>
+          <span>© 2026 PillSync</span>
+          <span>v2.0</span>
         </div>
       </div>
 
+      {/* RIGHT PANEL */}
+      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "2rem", background: "var(--bg-base)" }}>
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95, y: 20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="card"
+          style={{
+            width: "100%",
+            maxWidth: 460,
+            padding: "2.5rem",
+            borderRadius: 24,
+            border: "1px solid var(--border)",
+            background: "var(--bg-card)",
+            boxShadow: "var(--shadow-lg)"
+          }}
+        >
+          {success ? (
+            <div style={{ textAlign: "center", padding: "1rem 0" }}>
+              <div style={{ width: 64, height: 64, borderRadius: "50%", background: "var(--success-light)", color: "var(--success)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 1.5rem" }}>
+                <UserCheck size={32} />
+              </div>
+              <h2 style={{ fontSize: "1.5rem", fontWeight: 800, marginBottom: "0.75rem" }}>Registration Successful!</h2>
+              <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", marginBottom: "2rem", lineHeight: 1.6 }}>
+                Your PillSync account has been created. You can now login to access your customized dashboard.
+              </p>
+              <Link to="/login">
+                <button className="btn btn-primary btn-block">Go to Login</button>
+              </Link>
+            </div>
+          ) : (
+            <>
+              <div style={{ marginBottom: "1.5rem" }}>
+                <h2 style={{ fontSize: "1.5rem", fontWeight: 800, marginBottom: "0.4rem" }}>Create Account</h2>
+                <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem" }}>Start managing your medications today</p>
+              </div>
+
+              {serverError && <div className="alert alert-danger" style={{ marginBottom: "1.25rem" }}>{serverError}</div>}
+
+              <form onSubmit={handleSubmit} noValidate>
+                {/* Role Switcher */}
+                <div style={{ display: "flex", gap: "0.5rem", background: "var(--bg-hover)", padding: "4px", borderRadius: 10, marginBottom: "1.25rem" }}>
+                  <button
+                    type="button"
+                    onClick={() => setRole("patient")}
+                    style={{
+                      flex: 1, padding: "0.5rem", borderRadius: 8, border: "none", cursor: "pointer",
+                      fontWeight: 600, fontSize: "0.85rem",
+                      background: role === "patient" ? "var(--bg-primary)" : "transparent",
+                      color: role === "patient" ? "var(--primary)" : "var(--text-secondary)",
+                      boxShadow: role === "patient" ? "var(--shadow-xs)" : "none",
+                      transition: "all 0.2s"
+                    }}
+                  >Patient</button>
+                  <button
+                    type="button"
+                    onClick={() => setRole("caregiver")}
+                    style={{
+                      flex: 1, padding: "0.5rem", borderRadius: 8, border: "none", cursor: "pointer",
+                      fontWeight: 600, fontSize: "0.85rem",
+                      background: role === "caregiver" ? "var(--bg-primary)" : "transparent",
+                      color: role === "caregiver" ? "var(--primary)" : "var(--text-secondary)",
+                      boxShadow: role === "caregiver" ? "var(--shadow-xs)" : "none",
+                      transition: "all 0.2s"
+                    }}
+                  >Caregiver</button>
+                </div>
+
+                <div className="form-group" style={{ marginBottom: "1rem" }}>
+                  <label className="form-label">Full Name</label>
+                  <input
+                    type="text"
+                    className={`form-input ${errors.fullName ? "is-invalid" : ""}`}
+                    placeholder="Enter your name"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    disabled={isLoading}
+                  />
+                  {errors.fullName && <div className="form-error-msg">{errors.fullName}</div>}
+                </div>
+
+                <div className="form-group" style={{ marginBottom: "1rem" }}>
+                  <label className="form-label">Email Address</label>
+                  <input
+                    type="email"
+                    className={`form-input ${errors.email ? "is-invalid" : ""}`}
+                    placeholder="name@domain.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    disabled={isLoading}
+                  />
+                  {errors.email && <div className="form-error-msg">{errors.email}</div>}
+                </div>
+
+                <div className="form-group" style={{ marginBottom: "1rem" }}>
+                  <label className="form-label">Password</label>
+                  <input
+                    type="password"
+                    className={`form-input ${errors.password ? "is-invalid" : ""}`}
+                    placeholder="At least 6 characters"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    disabled={isLoading}
+                  />
+                  {errors.password && <div className="form-error-msg">{errors.password}</div>}
+                </div>
+
+                <div className="form-group" style={{ marginBottom: "1.5rem" }}>
+                  <label className="form-label">Confirm Password</label>
+                  <input
+                    type="password"
+                    className={`form-input ${errors.confirmPassword ? "is-invalid" : ""}`}
+                    placeholder="Verify password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    disabled={isLoading}
+                  />
+                  {errors.confirmPassword && <div className="form-error-msg">{errors.confirmPassword}</div>}
+                </div>
+
+                <button type="submit" className="btn btn-primary btn-block flex-center" disabled={isLoading}>
+                  {isLoading ? (
+                    <>
+                      <div className="spinner" style={{ width: "16px", height: "16px", borderWidth: "2px", borderTopColor: "#fff", marginRight: "8px" }} />
+                      <span>Registering...</span>
+                    </>
+                  ) : (
+                    "Create Account"
+                  )}
+                </button>
+              </form>
+
+              <div style={{ marginTop: "1.5rem", textAlign: "center", fontSize: "0.875rem", color: "var(--text-secondary)" }}>
+                Already have an account? <Link to="/login" style={{ fontWeight: "600", color: "var(--primary)" }}>Login here</Link>
+              </div>
+            </>
+          )}
+        </motion.div>
+      </div>
+
       <style dangerouslySetInnerHTML={{ __html: `
-        .auth-wrapper {
-          min-height: 100vh;
-          padding: 2.5rem 1rem;
-          background-color: var(--bg-secondary);
-        }
-
-        .auth-card {
-          background-color: var(--bg-primary);
-          border: 1px solid var(--border-color);
-          border-radius: var(--radius-lg);
-          padding: 2.75rem 2.5rem;
-          width: 100%;
-          max-width: 440px;
-          box-shadow: var(--shadow-lg);
-        }
-
-        .auth-header {
-          text-align: center;
-          margin-bottom: 1.5rem;
-        }
-
-        .auth-logo {
-          display: inline-flex;
-          align-items: center;
-          gap: 0.5rem;
-          margin-bottom: 1rem;
-        }
-
-        .auth-logo h2 {
-          font-size: 1.5rem;
-          font-weight: 800;
-          color: var(--text-primary);
-          margin-bottom: 0;
-          letter-spacing: -0.03em;
-        }
-
-        .brand-icon {
-          color: var(--primary-color);
-        }
-
-        .auth-header h3 {
-          font-size: 1.25rem;
-          font-weight: 700;
-          color: var(--text-primary);
-          margin-bottom: 0.25rem;
-        }
-
-        .auth-header p {
-          font-size: 0.8125rem;
-          color: var(--text-secondary);
-          line-height: 1.4;
-        }
-
-        .role-selector {
-          display: flex;
-          background-color: var(--bg-secondary);
-          border: 1px solid var(--border-color);
-          border-radius: var(--radius-md);
-          padding: 0.25rem;
-          margin-bottom: 1.75rem;
-        }
-
-        .role-btn {
-          flex: 1;
-          background: none;
-          border: none;
-          padding: 0.625rem;
-          font-size: 0.875rem;
-          font-weight: 600;
-          color: var(--text-secondary);
-          cursor: pointer;
-          border-radius: var(--radius-sm);
-          transition: var(--transition-fast);
-        }
-
-        .role-btn.active {
-          background-color: var(--bg-primary);
-          color: var(--primary-color);
-          box-shadow: var(--shadow-sm);
-        }
-
-        .password-wrapper {
-          position: relative;
-        }
-
-        .password-field {
-          padding-right: 2.75rem !important;
-        }
-
-        .password-toggle-btn {
-          position: absolute;
-          right: 12px;
-          top: 50%;
-          transform: translateY(-50%);
-          background: none;
-          border: none;
-          color: var(--text-light);
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 4px;
-          border-radius: 4px;
-        }
-
-        .password-toggle-btn:hover {
-          color: var(--text-secondary);
-          background-color: var(--bg-hover);
-        }
-
-        .required-indicator {
-          color: var(--error-color);
-          font-weight: bold;
-        }
-
-        .btn-block {
-          width: 100%;
-          padding: 0.875rem;
-          font-size: 0.9375rem;
-        }
-
-        .auth-footer {
-          margin-top: 1.75rem;
-          text-align: center;
-          font-size: 0.875rem;
-          color: var(--text-secondary);
-        }
-
-        @media (max-width: 480px) {
-          .auth-card {
-            padding: 2rem 1.5rem;
+        @media (max-width: 820px) {
+          .register-left-panel {
+            display: none !important;
           }
         }
       ` }} />
