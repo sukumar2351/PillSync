@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Bell, Sun, Moon, User, CheckCheck, X, Pill, Activity,
-  MessageSquare, Clock, Search, LogOut, Settings, HelpCircle,
+  MessageSquare, Clock, LogOut, Settings, HelpCircle,
   ChevronRight, Calendar, Globe
 } from "lucide-react";
 import { authService } from "../services/api";
@@ -33,8 +33,6 @@ const Navbar = ({ pageTitle }) => {
   const [notifications, setNotifications] = useState([]);
   const [unread, setUnread] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [searchVal, setSearchVal] = useState("");
-  const [searchFocused, setSearchFocused] = useState(false);
 
   const [darkMode, setDarkModeState] = useState(() =>
     document.documentElement.getAttribute("data-theme") === "dark" ||
@@ -44,12 +42,21 @@ const Navbar = ({ pageTitle }) => {
   const profileRef = useRef(null);
   const bellRef = useRef(null);
 
-  const formattedDate = new Date().toLocaleDateString(undefined, {
-    month: "short", day: "numeric"
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const formattedDate = currentTime.toLocaleDateString(undefined, {
+    weekday: "short", month: "short", day: "numeric"
   });
   
-  const formattedTime = new Date().toLocaleTimeString(undefined, {
-    hour: "2-digit", minute: "2-digit"
+  const formattedTime = currentTime.toLocaleTimeString(undefined, {
+    hour: "2-digit", minute: "2-digit", second: "2-digit"
   });
 
   // Close dropdowns on outside click
@@ -193,42 +200,6 @@ const Navbar = ({ pageTitle }) => {
         </div>
       </div>
 
-      {/* CENTER: Search Bar */}
-      <div style={{ flex: 1, maxWidth: 380, margin: "0 2rem", position: "relative" }}>
-        <motion.div
-          animate={{ scale: searchFocused ? 1.02 : 1 }}
-          transition={{ duration: 0.2 }}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            background: "var(--bg-secondary)",
-            border: searchFocused ? "1.5px solid var(--primary)" : "1px solid var(--border)",
-            borderRadius: 12,
-            padding: "0 0.85rem",
-            height: 38,
-            boxShadow: searchFocused ? "0 0 12px rgba(37,99,235,0.12)" : "none",
-            transition: "border-color 0.2s, box-shadow 0.2s"
-          }}
-        >
-          <Search size={16} style={{ color: searchFocused ? "var(--primary)" : "var(--text-light)", marginRight: "0.5rem" }} />
-          <input
-            type="text"
-            placeholder="Search medicines, reminders, patients..."
-            value={searchVal}
-            onChange={(e) => setSearchVal(e.target.value)}
-            onFocus={() => setSearchFocused(true)}
-            onBlur={() => setSearchFocused(false)}
-            style={{
-              background: "transparent",
-              border: "none",
-              outline: "none",
-              color: "var(--text-primary)",
-              fontSize: "0.82rem",
-              width: "100%"
-            }}
-          />
-        </motion.div>
-      </div>
 
       {/* RIGHT SIDE: Tools & Dropdowns */}
       <div style={{ display: "flex", alignItems: "center", gap: "1.25rem" }}>

@@ -355,13 +355,13 @@ async def log_requests(request: Request, call_next):
         except Exception:
             user_email = "invalid_token"
 
-    app_logger.info(f"→ {request.method} {request.url.path} | user={user_email}")
+    app_logger.info(f"--> {request.method} {request.url.path} | user={user_email}")
 
     try:
         response = await call_next(request)
         elapsed_ms = (time.perf_counter() - start) * 1000
         app_logger.info(
-            f"← {request.method} {request.url.path} | status={response.status_code} | "
+            f"<-- {request.method} {request.url.path} | status={response.status_code} | "
             f"user={user_email} | {elapsed_ms:.1f}ms"
         )
         return response
@@ -369,7 +369,7 @@ async def log_requests(request: Request, call_next):
     except Exception as exc:
         elapsed_ms = (time.perf_counter() - start) * 1000
         app_logger.error(
-            f"✗ {request.method} {request.url.path} | UNHANDLED EXCEPTION | "
+            f"[ERR] {request.method} {request.url.path} | UNHANDLED EXCEPTION | "
             f"user={user_email} | {elapsed_ms:.1f}ms"
         )
         app_logger.error(traceback.format_exc())

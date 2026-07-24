@@ -52,7 +52,7 @@ const Sidebar = ({ role, email }) => {
     <aside style={{
       width: 256,
       minHeight: "100vh",
-      background: "linear-gradient(180deg, #0a0e1a 0%, #0d1220 60%, #0b0f1a 100%)",
+      background: "var(--bg-primary)",
       display: "flex",
       flexDirection: "column",
       position: "sticky",
@@ -61,10 +61,11 @@ const Sidebar = ({ role, email }) => {
       overflowY: "auto",
       flexShrink: 0,
       zIndex: 100,
-      borderRight: "1px solid rgba(255,255,255,0.06)",
+      borderRight: "1px solid var(--border)",
+      boxShadow: "var(--shadow-sm)",
     }}>
       {/* Brand */}
-      <div style={{ padding: "1.75rem 1.5rem 1.25rem", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+      <div style={{ padding: "1.75rem 1.5rem 1.25rem", borderBottom: "1px solid var(--border)" }}>
         <Link to="/" style={{ display: "flex", alignItems: "center", gap: "0.75rem", textDecoration: "none" }}>
           <motion.div
             whileHover={{ scale: 1.1, rotate: 5 }}
@@ -78,7 +79,7 @@ const Sidebar = ({ role, email }) => {
           >
             <Activity size={20} color="white" />
           </motion.div>
-          <span style={{ fontSize: "1.2rem", fontWeight: 800, color: "#f8fafc", letterSpacing: "-0.025em" }}>
+          <span style={{ fontSize: "1.2rem", fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.025em" }}>
             Pill<span style={{ background: "linear-gradient(135deg, #06B6D4, #22C55E)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Sync</span>
           </span>
         </Link>
@@ -105,7 +106,7 @@ const Sidebar = ({ role, email }) => {
 
       {/* Nav */}
       <nav style={{ flex: 1, padding: "1.25rem 0.875rem" }}>
-        <p style={{ fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "rgba(148,163,184,0.5)", padding: "0 0.75rem", marginBottom: "0.5rem" }}>
+        <p style={{ fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--text-light)", padding: "0 0.75rem", marginBottom: "0.5rem" }}>
           Navigation
         </p>
         <ul style={{ listStyle: "none" }}>
@@ -129,7 +130,7 @@ const Sidebar = ({ role, email }) => {
                     borderRadius: 10,
                     fontSize: "0.875rem",
                     fontWeight: active ? 700 : 500,
-                    color: active ? "#ffffff" : "#94a3b8",
+                    color: active ? "#ffffff" : "var(--text-secondary)",
                     background: active
                       ? "linear-gradient(135deg, rgba(37,99,235,0.9), rgba(6,182,212,0.7))"
                       : "transparent",
@@ -141,14 +142,14 @@ const Sidebar = ({ role, email }) => {
                   }}
                   onMouseEnter={(e) => {
                     if (!active) {
-                      e.currentTarget.style.background = "rgba(255,255,255,0.06)";
-                      e.currentTarget.style.color = "#f1f5f9";
+                      e.currentTarget.style.background = "var(--bg-hover)";
+                      e.currentTarget.style.color = "var(--text-primary)";
                     }
                   }}
                   onMouseLeave={(e) => {
                     if (!active) {
                       e.currentTarget.style.background = "transparent";
-                      e.currentTarget.style.color = "#94a3b8";
+                      e.currentTarget.style.color = "var(--text-secondary)";
                     }
                   }}
                 >
@@ -165,8 +166,8 @@ const Sidebar = ({ role, email }) => {
       {/* Footer */}
       <div style={{
         padding: "1.25rem 0.875rem",
-        borderTop: "1px solid rgba(255,255,255,0.06)",
-        background: "rgba(0,0,0,0.2)",
+        borderTop: "1px solid var(--border)",
+        background: "var(--bg-secondary)",
       }}>
         {/* User info */}
         <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem", padding: "0 0.25rem" }}>
@@ -179,8 +180,8 @@ const Sidebar = ({ role, email }) => {
             {role ? role[0].toUpperCase() : "U"}
           </div>
           <div style={{ minWidth: 0 }}>
-            <p style={{ fontSize: "0.75rem", fontWeight: 600, color: "#94a3b8", margin: 0, textTransform: "capitalize" }}>{role}</p>
-            <p style={{ fontSize: "0.75rem", color: "#475569", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{email}</p>
+            <p style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-secondary)", margin: 0, textTransform: "capitalize" }}>{role}</p>
+            <p style={{ fontSize: "0.75rem", color: "var(--text-light)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{email}</p>
           </div>
         </div>
 
