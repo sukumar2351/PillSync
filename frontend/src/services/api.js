@@ -87,6 +87,14 @@ export const userService = {
     const response = await api.put("/users/profile", profileData);
     return response.data;
   },
+
+  updateEmail: async (newEmail, password) => {
+    const response = await api.put("/users/profile/email", {
+      new_email: newEmail,
+      password: password,
+    });
+    return response.data;
+  },
 };
 
 export const adminService = {
@@ -101,4 +109,67 @@ export const adminService = {
   },
 };
 
+export const medicineService = {
+  getMedicines: async () => {
+    const response = await api.get("/medicines/");
+    return response.data;
+  },
+
+  addMedicine: async (medData) => {
+    const response = await api.post("/medicines/", medData);
+    return response.data;
+  },
+
+  updateMedicine: async (id, medData) => {
+    const response = await api.put(`/medicines/${id}`, medData);
+    return response.data;
+  },
+
+  deleteMedicine: async (id) => {
+    const response = await api.delete(`/medicines/${id}`);
+    return response.data;
+  },
+
+  getRemindersToday: async () => {
+    const response = await api.get("/medicines/reminders/today");
+    return response.data;
+  },
+
+  logReminder: async (id, logData) => {
+    const response = await api.post(`/medicines/${id}/reminders/log`, logData);
+    return response.data;
+  },
+
+  getAdherenceHistory: async () => {
+    const response = await api.get("/medicines/history");
+    return response.data;
+  },
+
+  getPatientHistoryForCaregiver: async (patientId) => {
+    const response = await api.get(`/medicines/history/patient/${patientId}`);
+    return response.data;
+  },
+
+  getPatientHistoryByEmail: async (email) => {
+    const response = await api.get(`/medicines/history/patient/email/${email}`);
+    return response.data;
+  },
+
+  getNotificationSettings: async () => {
+    const response = await api.get("/users/profile/notifications");
+    return response.data;
+  },
+
+  updateNotificationSettings: async (settingsData) => {
+    const response = await api.put("/users/profile/notifications", settingsData);
+    return response.data;
+  },
+
+  sendTestEmail: async () => {
+    const response = await api.post("/users/profile/notifications/test-email");
+    return response.data;
+  },
+};
+
 export default api;
+
