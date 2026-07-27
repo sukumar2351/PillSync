@@ -228,6 +228,7 @@ class MedicineCreate(BaseModel):
     start_date: date
     end_date: date
     notes: Optional[str] = None
+    reminder_times: List[str] = []
 
     @field_validator("food_relation")
     @classmethod
@@ -250,6 +251,7 @@ class MedicineUpdate(BaseModel):
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     notes: Optional[str] = None
+    reminder_times: Optional[List[str]] = None
 
     @field_validator("food_relation")
     @classmethod

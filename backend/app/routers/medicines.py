@@ -27,39 +27,47 @@ patient_only = RoleChecker(allowed_roles=["patient"])
 
 @router.post("/", response_model=MedicineResponse, status_code=status.HTTP_201_CREATED)
 def add_medicine(payload: MedicineCreate, db: Session = Depends(get_db), current_user: User = Depends(patient_only)):
-    """Create a new medicine and generate its default reminder schedules."""
-    # Ensure patient role
+    """Create a new medicine and generate its dynamic reminder schedules."""
+    # Check morning/afternoon/night toggles based on times
+    morn = any(int(t.split(":")[0]) < 12 for t in payload.reminder_times if ":" in t)
+    aft = any(12 <= int(t.split(":")[0]) < 17 for t in payload.reminder_times if ":" in t)
+    nigh = any(int(t.split(":")[0]) >= 17 for t in payload.reminder_times if ":" in t)
+
     db_med = Medicine(
         user_id=current_user.id,
         name=payload.name,
         dosage=payload.dosage,
         quantity=payload.quantity,
         frequency=payload.frequency,
-        morning=payload.morning,
-        afternoon=payload.afternoon,
-        night=payload.night,
+        morning=morn,
+        afternoon=aft,
+        night=nigh,
         food_relation=payload.food_relation,
         start_date=payload.start_date,
         end_date=payload.end_date,
         notes=payload.notes
     )
     db.add(db_med)
-    db.flush()  # Acquire db_med.id
+    db.flush()
 
-    # Create schedules based on toggles
-    schedules = []
-    if payload.morning:
-        s = ReminderSchedule(medicine_id=db_med.id, time_of_day="Morning", scheduled_time="08:00")
+    for idx, t in enumerate(payload.reminder_times):
+        try:
+            hour = int(t.split(":")[0])
+            if hour < 12:
+                tod = "Morning"
+            elif hour < 17:
+                tod = "Afternoon"
+            else:
+                tod = "Night"
+        except Exception:
+            tod = f"Slot {idx+1}"
+
+        s = ReminderSchedule(
+            medicine_id=db_med.id,
+            time_of_day=tod,
+            scheduled_time=t
+        )
         db.add(s)
-        schedules.append(s)
-    if payload.afternoon:
-        s = ReminderSchedule(medicine_id=db_med.id, time_of_day="Afternoon", scheduled_time="14:00")
-        db.add(s)
-        schedules.append(s)
-    if payload.night:
-        s = ReminderSchedule(medicine_id=db_med.id, time_of_day="Night", scheduled_time="20:00")
-        db.add(s)
-        schedules.append(s)
 
     db.commit()
     db.refresh(db_med)
@@ -71,7 +79,7 @@ def get_medicines(db: Session = Depends(get_db), current_user: User = Depends(ge
     if current_user.role.name == "patient":
         return db.query(Medicine).filter(Medicine.user_id == current_user.id).all()
     else:
-        # Caregiver/Admin can view all (filter matches requested query in subsequent integrations)
+        # Caregiver/Admin can view all
         return db.query(Medicine).all()
 
 @router.put("/{medicine_id}", response_model=MedicineResponse)
@@ -81,23 +89,37 @@ def update_medicine(medicine_id: int, payload: MedicineUpdate, db: Session = Dep
     if not db_med:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Medicine not found")
 
-    # Update base fields
     update_data = payload.model_dump(exclude_unset=True)
+    reminder_times = update_data.pop("reminder_times", None)
+
     for key, value in update_data.items():
         setattr(db_med, key, value)
 
-    # Regenerate schedules if morning/afternoon/night toggles are updated
-    if any(k in update_data for k in ["morning", "afternoon", "night"]):
-        # Delete old schedules
+    if reminder_times is not None:
         db.query(ReminderSchedule).filter(ReminderSchedule.medicine_id == db_med.id).delete()
-        
-        # Create new ones
-        if db_med.morning:
-            db.add(ReminderSchedule(medicine_id=db_med.id, time_of_day="Morning", scheduled_time="08:00"))
-        if db_med.afternoon:
-            db.add(ReminderSchedule(medicine_id=db_med.id, time_of_day="Afternoon", scheduled_time="14:00"))
-        if db_med.night:
-            db.add(ReminderSchedule(medicine_id=db_med.id, time_of_day="Night", scheduled_time="20:00"))
+
+        db_med.morning = any(int(t.split(":")[0]) < 12 for t in reminder_times if ":" in t)
+        db_med.afternoon = any(12 <= int(t.split(":")[0]) < 17 for t in reminder_times if ":" in t)
+        db_med.night = any(int(t.split(":")[0]) >= 17 for t in reminder_times if ":" in t)
+
+        for idx, t in enumerate(reminder_times):
+            try:
+                hour = int(t.split(":")[0])
+                if hour < 12:
+                    tod = "Morning"
+                elif hour < 17:
+                    tod = "Afternoon"
+                else:
+                    tod = "Night"
+            except Exception:
+                tod = f"Slot {idx+1}"
+
+            s = ReminderSchedule(
+                medicine_id=db_med.id,
+                time_of_day=tod,
+                scheduled_time=t
+            )
+            db.add(s)
 
     db.commit()
     db.refresh(db_med)

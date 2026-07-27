@@ -1,16 +1,16 @@
-import React, { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { Plus, Bell, Pill, Check, LogOut, ShieldAlert, Award, Calendar, RefreshCw, X, Edit, Trash } from "lucide-react";
 import { authService, medicineService } from "../services/api";
-import Sidebar from "../components/Sidebar";
-import Navbar from "../components/Navbar";
 
-const PatientDashboard = ({ auth }) => {
-  const [userData, setUserData] = useState(null);
+const PatientDashboard = ({ user, setAuth }) => {
+  const navigate = useNavigate();
+  const [userData, setUserData] = useState(user);
   const [medicines, setMedicines] = useState([]);
   const [reminders, setReminders] = useState([]);
   const [historyStats, setHistoryStats] = useState(null);
   const [notifSettings, setNotifSettings] = useState(null);
-  
+
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
@@ -19,28 +19,28 @@ const PatientDashboard = ({ auth }) => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingMed, setEditingMed] = useState(null);
-  const [showM3Modal, setShowM3Modal] = useState(false);
 
   // Form Fields
   const [medName, setMedName] = useState("");
   const [medDosage, setMedDosage] = useState("");
   const [medQuantity, setMedQuantity] = useState("");
   const [medFrequency, setMedFrequency] = useState("Daily");
-  const [medMorning, setMedMorning] = useState(false);
-  const [medAfternoon, setMedAfternoon] = useState(false);
-  const [medNight, setMedNight] = useState(false);
   const [medFood, setMedFood] = useState("After Food");
   const [medStart, setMedStart] = useState("");
   const [medEnd, setMedEnd] = useState("");
   const [medNotes, setMedNotes] = useState("");
+
+  // Dynamic reminders scheduling fields
+  const [medTimesPerDay, setMedTimesPerDay] = useState("Once Daily");
+  const [medReminderTimes, setMedReminderTimes] = useState(["08:00"]);
 
   // Snoozed reminders tracking (stored locally as key: timestamp)
   const [snoozedMap, setSnoozedMap] = useState({});
 
   const fetchData = async () => {
     try {
-      const user = await authService.getCurrentUser();
-      setUserData(user);
+      const userRes = await authService.getCurrentUser();
+      setUserData(userRes);
 
       const meds = await medicineService.getMedicines();
       setMedicines(meds);
@@ -68,7 +68,6 @@ const PatientDashboard = ({ auth }) => {
       Notification.requestPermission();
     }
 
-    // Set up periodic reminders refresh interval (every 15 seconds)
     const interval = setInterval(async () => {
       try {
         const rems = await medicineService.getRemindersToday();
@@ -87,14 +86,12 @@ const PatientDashboard = ({ auth }) => {
       const now = new Date();
       reminders.forEach((r) => {
         if (r.status === "Pending") {
-          // Check if it is snoozed
           const snoozeTime = snoozedMap[r.id];
           if (snoozeTime && now.getTime() < snoozeTime) {
-            return; // Still snoozed
+            return;
           }
 
-          // Trigger notification
-          const notif = new Notification("PillSync Reminder", {
+          new Notification("PillSync Reminder", {
             body: `Time to take ${r.name} (${r.dosage}) - ${r.time_of_day} (${r.food_relation})`,
             icon: "/favicon.ico"
           });
@@ -103,13 +100,61 @@ const PatientDashboard = ({ auth }) => {
     }
   }, [reminders, snoozedMap]);
 
+  // Handle Times per Day Selection change
+  const handleTimesPerDayChange = (val) => {
+    setMedTimesPerDay(val);
+    let newTimes = [];
+    if (val === "Once Daily") {
+      newTimes = ["08:00"];
+    } else if (val === "Twice Daily") {
+      newTimes = ["08:00", "20:00"];
+    } else if (val === "Three Times Daily") {
+      newTimes = ["08:00", "14:00", "20:00"];
+    } else if (val === "Four Times Daily") {
+      newTimes = ["08:00", "12:00", "16:00", "20:00"];
+    } else if (val === "Five Times Daily") {
+      newTimes = ["08:00", "11:00", "14:00", "17:00", "20:00"];
+    } else if (val === "Six Times Daily") {
+      newTimes = ["08:00", "10:00", "12:00", "14:00", "16:00", "18:00"];
+    } else {
+      newTimes = medReminderTimes.length > 0 ? medReminderTimes : ["08:00"];
+    }
+    setMedReminderTimes(newTimes);
+  };
+
+  const handleAddTimeInput = () => {
+    setMedReminderTimes([...medReminderTimes, "08:00"]);
+  };
+
+  const handleRemoveTimeInput = (index) => {
+    if (medReminderTimes.length <= 1) return;
+    const newTimes = medReminderTimes.filter((_, idx) => idx !== index);
+    setMedReminderTimes(newTimes);
+  };
+
+  const handleTimeChange = (index, value) => {
+    const newTimes = [...medReminderTimes];
+    newTimes[index] = value;
+    setMedReminderTimes(newTimes);
+  };
+
+  const validateReminderTimes = () => {
+    if (medReminderTimes.some(t => !t)) {
+      alert("Please ensure all reminder times are valid.");
+      return false;
+    }
+    const uniqueTimes = new Set(medReminderTimes);
+    if (uniqueTimes.size !== medReminderTimes.length) {
+      alert("Duplicate reminder times are not allowed. Each reminder time must be unique.");
+      return false;
+    }
+    return true;
+  };
+
   // Handle Add Medicine
   const handleAddMedicine = async (e) => {
     e.preventDefault();
-    if (!medMorning && !medAfternoon && !medNight) {
-      alert("Please select at least one dosage time (Morning, Afternoon, or Night).");
-      return;
-    }
+    if (!validateReminderTimes()) return;
 
     try {
       const payload = {
@@ -117,13 +162,11 @@ const PatientDashboard = ({ auth }) => {
         dosage: medDosage,
         quantity: parseInt(medQuantity, 10),
         frequency: medFrequency,
-        morning: medMorning,
-        afternoon: medAfternoon,
-        night: medNight,
         food_relation: medFood,
         start_date: medStart,
         end_date: medEnd,
-        notes: medNotes || null
+        notes: medNotes || null,
+        reminder_times: medReminderTimes
       };
 
       await medicineService.addMedicine(payload);
@@ -143,23 +186,38 @@ const PatientDashboard = ({ auth }) => {
     setMedDosage(med.dosage);
     setMedQuantity(String(med.quantity));
     setMedFrequency(med.frequency);
-    setMedMorning(med.morning);
-    setMedAfternoon(med.afternoon);
-    setMedNight(med.night);
     setMedFood(med.food_relation);
     setMedStart(med.start_date);
     setMedEnd(med.end_date);
     setMedNotes(med.notes || "");
+
+    const times = med.reminder_schedules ? med.reminder_schedules.map(s => s.scheduled_time) : [];
+    setMedReminderTimes(times);
+
+    // Map saved times count to category selection list
+    if (times.length === 1 && times[0] === "08:00") {
+      setMedTimesPerDay("Once Daily");
+    } else if (times.length === 2 && JSON.stringify(times) === JSON.stringify(["08:00", "20:00"])) {
+      setMedTimesPerDay("Twice Daily");
+    } else if (times.length === 3 && JSON.stringify(times) === JSON.stringify(["08:00", "14:00", "20:00"])) {
+      setMedTimesPerDay("Three Times Daily");
+    } else if (times.length === 4 && JSON.stringify(times) === JSON.stringify(["08:00", "12:00", "16:00", "20:00"])) {
+      setMedTimesPerDay("Four Times Daily");
+    } else if (times.length === 5 && JSON.stringify(times) === JSON.stringify(["08:00", "11:00", "14:00", "17:00", "20:00"])) {
+      setMedTimesPerDay("Five Times Daily");
+    } else if (times.length === 6 && JSON.stringify(times) === JSON.stringify(["08:00", "10:00", "12:00", "14:00", "16:00", "18:00"])) {
+      setMedTimesPerDay("Six Times Daily");
+    } else {
+      setMedTimesPerDay("Custom");
+    }
+
     setShowEditModal(true);
   };
 
   // Handle Update Medicine
   const handleUpdateMedicine = async (e) => {
     e.preventDefault();
-    if (!medMorning && !medAfternoon && !medNight) {
-      alert("Please select at least one dosage time.");
-      return;
-    }
+    if (!validateReminderTimes()) return;
 
     try {
       const payload = {
@@ -167,13 +225,11 @@ const PatientDashboard = ({ auth }) => {
         dosage: medDosage,
         quantity: parseInt(medQuantity, 10),
         frequency: medFrequency,
-        morning: medMorning,
-        afternoon: medAfternoon,
-        night: medNight,
         food_relation: medFood,
         start_date: medStart,
         end_date: medEnd,
-        notes: medNotes || null
+        notes: medNotes || null,
+        reminder_times: medReminderTimes
       };
 
       await medicineService.updateMedicine(editingMed.id, payload);
@@ -201,32 +257,30 @@ const PatientDashboard = ({ auth }) => {
     }
   };
 
-  // Log Reminder status (Taken / Missed / Snooze)
-  const handleLogReminder = async (medId, timeOfDay, status, reminderId) => {
-    if (status === "Snoozed") {
-      // Snooze locally for 5 minutes (300,000 ms)
-      const now = new Date();
-      const snoozeUntil = now.getTime() + 5 * 60 * 1000;
-      setSnoozedMap((prev) => ({
-        ...prev,
-        [reminderId]: snoozeUntil
-      }));
-      alert(`Reminder for ${timeOfDay} has been snoozed for 5 minutes.`);
-      return;
-    }
-
+  // Handle Log Dose Action
+  const handleLogDose = async (reminderId, statusType, timeLabel) => {
     try {
-      const payload = {
-        status: status,
-        time_of_day: timeOfDay,
-        scheduled_date: new Date().toISOString().split("T")[0]
-      };
-      await medicineService.logReminder(medId, payload);
-      setSuccessMsg(`Medication marked as ${status}.`);
+      await medicineService.logMedicationDose({
+        reminder_schedule_id: reminderId,
+        status: statusType,
+        time_of_day: timeLabel
+      });
+      setSuccessMsg(`Medication dose marked as ${statusType}!`);
       fetchData();
     } catch (err) {
-      alert("Failed to log status.");
+      alert("Failed to record medication status logs.");
     }
+  };
+
+  // Handle Snooze Dose Action
+  const handleSnooze = (reminderId) => {
+    const minutes = 5;
+    const snoozeTime = new Date().getTime() + minutes * 60 * 1000;
+    setSnoozedMap((prev) => ({
+      ...prev,
+      [reminderId]: snoozeTime
+    }));
+    alert(`Reminder snoozed for ${minutes} minutes.`);
   };
 
   const resetForm = () => {
@@ -234,294 +288,219 @@ const PatientDashboard = ({ auth }) => {
     setMedDosage("");
     setMedQuantity("");
     setMedFrequency("Daily");
-    setMedMorning(false);
-    setMedAfternoon(false);
-    setMedNight(false);
     setMedFood("After Food");
     setMedStart("");
     setMedEnd("");
     setMedNotes("");
+    setMedTimesPerDay("Once Daily");
+    setMedReminderTimes(["08:00"]);
     setEditingMed(null);
+  };
+
+  const handleLogout = () => {
+    authService.logout();
+    setAuth({ token: null, role: null, email: null });
+    navigate("/login");
   };
 
   if (isLoading) {
     return (
-      <div className="app-container">
-        <Sidebar role={auth.role} email={auth.email} />
-        <div className="main-content flex-center">
-          <div className="spinner" />
-        </div>
+      <div className="flex-center" style={{ minHeight: "100vh", background: "var(--bg-base)", flexDirection: "column", gap: "1rem" }}>
+        <div className="spinner" style={{ width: "32px", height: "32px", borderTopColor: "var(--primary)" }} />
+        <span style={{ color: "var(--text-secondary)", fontSize: "0.9rem" }}>Powering up PillSync...</span>
       </div>
     );
   }
 
-  const profile = userData?.profile || {};
-  const activeReminders = reminders.filter(r => r.status === "Pending");
-  
-  // Resolve upcoming reminders (still pending or next due intervals)
-  const upcomingReminders = reminders.filter(r => {
-    // Basic simulation: show all pending that are not Morning if current time is past 10am, etc.
-    // For simplicity, display all due reminders that are not logged as Taken/Missed yet.
-    return r.status === "Pending";
-  });
-
   return (
-    <div className="app-container">
-      <Sidebar role={auth.role} email={auth.email} />
-      <div className="main-content">
-        <Navbar pageTitle="Patient Dashboard" />
+    <div style={{ display: "flex", minHeight: "100vh", background: "var(--bg-base)" }}>
+      {/* Sidebar container */}
+      <div style={{ width: "260px", background: "var(--bg-card)", borderRight: "1px solid var(--border)", display: "flex", flexDirection: "column", justifyContent: "space-between", padding: "1.5rem" }}>
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "2rem" }}>
+            <Activity size={24} color="var(--primary)" />
+            <span style={{ fontSize: "1.15rem", fontWeight: "800", color: "var(--text-main)" }}>PillSync Dashboard</span>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+            <Link to="/patient-dashboard" className="sidebar-link active" style={{ textDecoration: "none", color: "var(--text-main)", display: "flex", alignItems: "center", gap: "0.75rem", padding: "0.75rem", borderRadius: "8px" }}>
+              <Pill size={18} />
+              <span>Medicines List</span>
+            </Link>
+            <Link to="/profile" className="sidebar-link" style={{ textDecoration: "none", color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: "0.75rem", padding: "0.75rem", borderRadius: "8px" }}>
+              <Users size={18} />
+              <span>My Profile</span>
+            </Link>
+            <Link to="/notifications" className="sidebar-link" style={{ textDecoration: "none", color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: "0.75rem", padding: "0.75rem", borderRadius: "8px" }}>
+              <Bell size={18} />
+              <span>Preferences</span>
+            </Link>
+          </div>
+        </div>
+
+        <button onClick={handleLogout} className="btn btn-secondary flex-center" style={{ gap: "0.5rem", color: "var(--error-color)", borderColor: "var(--border)" }}>
+          <LogOut size={16} />
+          <span>Sign Out</span>
+        </button>
+      </div>
+
+      {/* Main panel */}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflowY: "auto", height: "100vh" }}>
         
-        <main className="content-area">
+        {/* Top Navbar */}
+        <header style={{ height: "64px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 2rem", background: "var(--bg-card)" }}>
+          <h2 style={{ fontSize: "1.1rem", fontWeight: 800 }}>Welcome Back, {userData?.profile?.full_name || "Patient"}</h2>
+          <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+            <span className="badge badge-secondary" style={{ textTransform: "capitalize" }}>{userData?.role} Account</span>
+          </div>
+        </header>
+
+        {/* Content Wrapper */}
+        <main style={{ padding: "2rem", display: "flex", flexDirection: "column", gap: "2rem" }}>
+          
           {successMsg && (
             <div className="alert alert-success" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span>{successMsg}</span>
-              <button onClick={() => setSuccessMsg("")} className="btn-close" style={{ background: "none", border: "none", color: "var(--primary-color)", fontWeight: "bold", cursor: "pointer" }}>×</button>
+              <button onClick={() => setSuccessMsg("")} style={{ background: "transparent", border: "none", cursor: "pointer", color: "inherit" }}><X size={16} /></button>
             </div>
           )}
-          {errorMsg && <div className="alert alert-danger">{errorMsg}</div>}
 
-          {/* Welcome Panel */}
-          <div className="welcome-banner card">
-            <h2>Welcome back, {profile.full_name || "Patient"}!</h2>
-            <p>Monitor your active reminder notifications, email updates, and manage your medicine schedule efficiently.</p>
+          {errorMsg && (
+            <div className="alert alert-danger" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span>{errorMsg}</span>
+              <button onClick={() => setErrorMsg("")} style={{ background: "transparent", border: "none", cursor: "pointer", color: "inherit" }}><X size={16} /></button>
+            </div>
+          )}
+
+          {/* Compliance Stats Cards */}
+          <div className="grid grid-cols-4" style={{ gap: "1.5rem" }}>
+            <div className="card" style={{ padding: "1.25rem", borderRadius: "12px", borderLeft: "4px solid var(--primary)" }}>
+              <span style={{ color: "var(--text-light)", fontSize: "0.75rem", display: "block" }}>Compliance Rate</span>
+              <h3 style={{ fontSize: "1.75rem", fontWeight: 800, margin: "0.25rem 0" }}>{historyStats?.adherence_rate || 0}%</h3>
+              <span style={{ fontSize: "0.7rem", color: "var(--text-light)" }}>Target goal is 95%+</span>
+            </div>
+            <div className="card" style={{ padding: "1.25rem", borderRadius: "12px", borderLeft: "4px solid var(--success-color)" }}>
+              <span style={{ color: "var(--text-light)", fontSize: "0.75rem", display: "block" }}>Doses Logged</span>
+              <h3 style={{ fontSize: "1.75rem", fontWeight: 800, margin: "0.25rem 0" }}>{historyStats?.total_taken || 0}</h3>
+              <span style={{ fontSize: "0.7rem", color: "var(--text-light)" }}>All historical intakes</span>
+            </div>
+            <div className="card" style={{ padding: "1.25rem", borderRadius: "12px", borderLeft: "4px solid var(--error-color)" }}>
+              <span style={{ color: "var(--text-light)", fontSize: "0.75rem", display: "block" }}>Missed Doses</span>
+              <h3 style={{ fontSize: "1.75rem", fontWeight: 800, margin: "0.25rem 0" }}>{historyStats?.total_missed || 0}</h3>
+              <span style={{ fontSize: "0.7rem", color: "var(--text-light)" }}>Log missed alerts</span>
+            </div>
+            <div className="card" style={{ padding: "1.25rem", borderRadius: "12px", borderLeft: "4px solid var(--accent)" }}>
+              <span style={{ color: "var(--text-light)", fontSize: "0.75rem", display: "block" }}>Active Medicines</span>
+              <h3 style={{ fontSize: "1.75rem", fontWeight: 800, margin: "0.25rem 0" }}>{medicines.length}</h3>
+              <span style={{ fontSize: "0.7rem", color: "var(--text-light)" }}>Currently tracking</span>
+            </div>
           </div>
 
-          {/* Adherence Stats Metrics & Email configurations */}
-          <div className="grid grid-cols-4 stats-grid" style={{ marginBottom: "2rem" }}>
-            {historyStats && (
-              <>
-                <div className="card stat-card" style={{ borderLeft: "4px solid var(--primary-color)" }}>
-                  <span className="stat-label">Adherence Rate</span>
-                  <h3 className="stat-val" style={{ color: "var(--primary-color)", fontSize: "1.75rem", fontWeight: "bold" }}>
-                    {historyStats.adherence_rate}%
-                  </h3>
-                </div>
-                <div className="card stat-card" style={{ borderLeft: "4px solid #10b981" }}>
-                  <span className="stat-label">Doses Logged</span>
-                  <h3 className="stat-val" style={{ color: "#10b981", fontSize: "1.75rem", fontWeight: "bold" }}>
-                    {historyStats.taken_count} / {historyStats.total_scheduled}
-                  </h3>
-                </div>
-              </>
-            )}
+          {/* Today's Checklist Schedule Module */}
+          <div className="card" style={{ padding: "1.5rem", borderRadius: "16px" }}>
+            <h3 style={{ margin: "0 0 1rem 0", fontSize: "1.1rem", fontWeight: "800" }}>Today's Medicine Checklist</h3>
             
-            {/* Email Status Panel */}
-            <div className="card stat-card" style={{ borderLeft: "4px solid #3b82f6" }}>
-              <span className="stat-label">Email Status</span>
-              <h3 className="stat-val" style={{ color: "#3b82f6", fontSize: "1.25rem", fontWeight: "bold" }}>
-                {notifSettings?.email_enabled ? "✓ Enabled" : "✗ Disabled"}
-              </h3>
-              <small style={{ color: "var(--text-light)" }}>Preference: {notifSettings?.notification_preference || "Daily"}</small>
-            </div>
-
-            {/* Notification Status Panel */}
-            <div className="card stat-card" style={{ borderLeft: "4px solid #f59e0b" }}>
-              <span className="stat-label">Delivery Endpoint</span>
-              <h3 className="stat-val" style={{ color: "#f59e0b", fontSize: "0.85rem", fontWeight: "bold", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                {auth.email || "Registered Email"}
-              </h3>
-              <small style={{ color: "var(--text-light)" }}>SMTP status: {notifSettings?.delivery_status || "Pending"}</small>
-            </div>
-          </div>
-
-          {/* Milestone 3 Sidebar Placeholders & Reminders */}
-          <div className="grid grid-cols-3">
-            {/* Active Reminder Panel */}
-            <div className="card col-span-1 reminders-panel" style={{ background: "#fef3c7", borderColor: "#fde68a" }}>
-              <h3 className="card-title" style={{ color: "#b45309" }}>Due Reminders Today</h3>
-              <div className="reminder-list">
-                {activeReminders.map((rem) => (
-                  <div key={rem.id} className="reminder-item card" style={{ background: "#ffffff", padding: "1rem", marginBottom: "1rem" }}>
-                    <div style={{ fontWeight: "bold", fontSize: "1rem", color: "var(--text-primary)" }}>{rem.name}</div>
-                    <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
-                      Dosage: {rem.dosage} | {rem.time_of_day} ({rem.scheduled_time})
+            <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+              {reminders.map((r) => (
+                <div key={r.id} className="flex-center" style={{ justifyContent: "space-between", padding: "1rem", background: "var(--bg-secondary)", borderRadius: "12px", border: "1px solid var(--border)" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+                    <div style={{ width: "36px", height: "36px", borderRadius: "8px", background: "rgba(37,99,235,0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--primary)" }}>
+                      <Pill size={20} />
                     </div>
-                    <div style={{ fontSize: "0.8rem", color: "var(--text-light)", marginBottom: "0.5rem" }}>
-                      Instruction: {rem.food_relation}
-                    </div>
-                    <div className="reminder-actions" style={{ display: "flex", gap: "0.5rem" }}>
-                      <button 
-                        onClick={() => handleLogReminder(rem.medicine_id, rem.time_of_day, "Taken", rem.id)}
-                        className="btn btn-primary" 
-                        style={{ padding: "0.4rem 0.6rem", fontSize: "0.75rem", background: "#10b981", borderColor: "#10b981" }}
-                      >
-                        Taken
-                      </button>
-                      <button 
-                        onClick={() => handleLogReminder(rem.medicine_id, rem.time_of_day, "Missed", rem.id)}
-                        className="btn btn-secondary" 
-                        style={{ padding: "0.4rem 0.6rem", fontSize: "0.75rem", background: "#ef4444", borderColor: "#ef4444", color: "#fff" }}
-                      >
-                        Missed
-                      </button>
-                      <button 
-                        onClick={() => handleLogReminder(rem.medicine_id, rem.time_of_day, "Snoozed", rem.id)}
-                        className="btn" 
-                        style={{ padding: "0.4rem 0.6rem", fontSize: "0.75rem", background: "#f59e0b", border: "1px solid #f59e0b", color: "#fff" }}
-                      >
-                        Snooze
-                      </button>
+                    <div>
+                      <h4 style={{ margin: "0 0 0.25rem", fontSize: "0.95rem" }}>{r.name}</h4>
+                      <div style={{ fontSize: "0.8rem", color: "var(--text-light)", display: "flex", gap: "1rem" }}>
+                        <span>Dosage: <strong>{r.dosage}</strong></span>
+                        <span>Time: <strong>{r.time_of_day} ({r.scheduled_time})</strong></span>
+                        <span>Food: <strong>{r.food_relation}</strong></span>
+                      </div>
                     </div>
                   </div>
-                ))}
-                {activeReminders.length === 0 && (
-                  <p style={{ textAlign: "center", color: "#b45309", fontSize: "0.9rem" }}>No active reminders pending for today.</p>
-                )}
-              </div>
 
-              {/* Upcoming Medicines Block */}
-              <h4 style={{ color: "#b45309", marginTop: "1.5rem", marginBottom: "0.75rem", fontSize: "0.95rem", fontWeight: "bold" }}>Upcoming Medicines Today</h4>
-              <ul style={{ paddingLeft: "1.2rem", fontSize: "0.85rem", color: "var(--text-secondary)" }}>
-                {upcomingReminders.slice(0, 3).map((rem) => (
-                  <li key={rem.id} style={{ marginBottom: "0.4rem" }}>
-                    <strong>{rem.name}</strong> - {rem.time_of_day} at {rem.scheduled_time}
-                  </li>
-                ))}
-                {upcomingReminders.length === 0 && <li>No upcoming scheduled doses remaining today.</li>}
-              </ul>
-            </div>
-
-            {/* My Medicines List Panel */}
-            <div className="card col-span-2">
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-                <h3 className="card-title">My Medicines Directory</h3>
-                <button onClick={() => { resetForm(); setShowAddModal(true); }} className="btn btn-primary">
-                  + Add Medicine
-                </button>
-              </div>
-
-              <div className="table-container">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Name</th>
-                      <th>Dosage</th>
-                      <th>Quantity</th>
-                      <th>Schedules</th>
-                      <th>Instruction</th>
-                      <th>Start / End Date</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {medicines.map((med) => (
-                      <tr key={med.id}>
-                        <td><strong>{med.name}</strong></td>
-                        <td>{med.dosage}</td>
-                        <td>{med.quantity} left</td>
-                        <td>
-                          <div style={{ display: "flex", gap: "0.2rem", flexWrap: "wrap" }}>
-                            {med.morning && <span className="badge badge-primary" style={{ fontSize: "0.7rem" }}>Morn</span>}
-                            {med.afternoon && <span className="badge badge-secondary" style={{ fontSize: "0.7rem" }}>Aft</span>}
-                            {med.night && <span className="badge badge-success" style={{ fontSize: "0.7rem" }}>Night</span>}
-                          </div>
-                        </td>
-                        <td>{med.food_relation}</td>
-                        <td style={{ fontSize: "0.8rem", color: "var(--text-light)" }}>
-                          {med.start_date} to {med.end_date}
-                        </td>
-                        <td>
-                          <div style={{ display: "flex", gap: "0.4rem" }}>
-                            <button onClick={() => openEditModal(med)} className="btn btn-secondary" style={{ padding: "0.2rem 0.4rem", fontSize: "0.75rem" }}>Edit</button>
-                            <button onClick={() => handleDeleteMedicine(med.id)} className="btn btn-danger" style={{ padding: "0.2rem 0.4rem", fontSize: "0.75rem", background: "#ef4444", borderColor: "#ef4444", color: "#fff" }}>Delete</button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                    {medicines.length === 0 && (
-                      <tr>
-                        <td colSpan="7" style={{ textAlign: "center", padding: "2rem", color: "var(--text-light)" }}>No medicines configured. Click "+ Add Medicine" to start.</td>
-                      </tr>
+                  <div style={{ display: "flex", gap: "0.5rem" }}>
+                    {r.status === "Pending" ? (
+                      <>
+                        <button onClick={() => handleLogDose(r.id, "Taken", r.time_of_day)} className="btn btn-primary" style={{ padding: "0.4rem 0.8rem", fontSize: "0.8rem", display: "flex", alignItems: "center", gap: "0.3rem" }}>
+                          <Check size={14} /> Mark Taken
+                        </button>
+                        <button onClick={() => handleLogDose(r.id, "Missed", r.time_of_day)} className="btn btn-secondary" style={{ padding: "0.4rem 0.8rem", fontSize: "0.8rem", color: "var(--error-color)" }}>
+                          Missed
+                        </button>
+                        <button onClick={() => handleSnooze(r.id)} className="btn btn-secondary" style={{ padding: "0.4rem 0.8rem", fontSize: "0.8rem" }}>
+                          Snooze
+                        </button>
+                      </>
+                    ) : (
+                      <span className={`badge ${r.status === "Taken" ? "badge-success" : "badge-secondary"}`} style={{ padding: "0.5rem 1rem", borderRadius: "20px" }}>
+                        {r.status}
+                      </span>
                     )}
-                  </tbody>
-                </table>
-              </div>
+                  </div>
+                </div>
+              ))}
+
+              {reminders.length === 0 && (
+                <div style={{ padding: "3rem", textAlign: "center", color: "var(--text-light)" }}>
+                  <Calendar size={36} style={{ opacity: 0.5, marginBottom: "0.5rem" }} />
+                  <p>All clear! No pending reminders schedules for today.</p>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Milestone 3 Features Section */}
-          <div className="card" style={{ marginTop: "2rem", background: "#f8fafc" }}>
-            <h3 className="card-title">AI & Smart Features (Upcoming in Milestone 3)</h3>
-            <p style={{ color: "var(--text-light)", fontSize: "0.875rem", marginBottom: "1rem" }}>Expand your PillSync capabilities with our planned AI modules. Click on any block to view descriptions.</p>
-            
-            <div className="grid grid-cols-4" style={{ gap: "1rem" }}>
-              <div 
-                className="card" 
-                onClick={() => setShowM3Modal(true)}
-                style={{ cursor: "pointer", border: "1px dashed var(--border-color)", padding: "1rem", textAlign: "center", opacity: 0.7 }}
-              >
-                <div style={{ fontSize: "1.5rem", marginBottom: "0.5rem" }}>📷</div>
-                <h4 style={{ fontSize: "0.95rem", fontWeight: "bold" }}>Prescription Scanner</h4>
-                <span className="badge badge-secondary" style={{ fontSize: "0.7rem", marginTop: "0.5rem" }}>Coming in Milestone 3</span>
-              </div>
-
-              <div 
-                className="card" 
-                onClick={() => setShowM3Modal(true)}
-                style={{ cursor: "pointer", border: "1px dashed var(--border-color)", padding: "1rem", textAlign: "center", opacity: 0.7 }}
-              >
-                <div style={{ fontSize: "1.5rem", marginBottom: "0.5rem" }}>🧠</div>
-                <h4 style={{ fontSize: "0.95rem", fontWeight: "bold" }}>AI Refill Prediction</h4>
-                <span className="badge badge-secondary" style={{ fontSize: "0.7rem", marginTop: "0.5rem" }}>Coming in Milestone 3</span>
-              </div>
-
-              <div 
-                className="card" 
-                onClick={() => setShowM3Modal(true)}
-                style={{ cursor: "pointer", border: "1px dashed var(--border-color)", padding: "1rem", textAlign: "center", opacity: 0.7 }}
-              >
-                <div style={{ fontSize: "1.5rem", marginBottom: "0.5rem" }}>🤖</div>
-                <h4 style={{ fontSize: "0.95rem", fontWeight: "bold" }}>OpenAI GPT Assistant</h4>
-                <span className="badge badge-secondary" style={{ fontSize: "0.7rem", marginTop: "0.5rem" }}>Coming in Milestone 3</span>
-              </div>
-
-              <div 
-                className="card" 
-                onClick={() => setShowM3Modal(true)}
-                style={{ cursor: "pointer", border: "1px dashed var(--border-color)", padding: "1rem", textAlign: "center", opacity: 0.7 }}
-              >
-                <div style={{ fontSize: "1.5rem", marginBottom: "0.5rem" }}>🔬</div>
-                <h4 style={{ fontSize: "0.95rem", fontWeight: "bold" }}>Smart AI Adherence</h4>
-                <span className="badge badge-secondary" style={{ fontSize: "0.7rem", marginTop: "0.5rem" }}>Coming in Milestone 3</span>
-              </div>
+          {/* Medicines database management */}
+          <div className="card" style={{ padding: "1.5rem", borderRadius: "16px" }}>
+            <div className="flex-center" style={{ justifyContent: "space-between", marginBottom: "1.5rem" }}>
+              <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: "800" }}>Active Medications</h3>
+              <button onClick={() => { resetForm(); setShowAddModal(true); }} className="btn btn-primary" style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                <Plus size={16} /> Add Medicine
+              </button>
             </div>
-          </div>
 
-          {/* Adherence History logs list */}
-          <div className="card" style={{ marginTop: "2rem" }}>
-            <h3 className="card-title">Medication Logs History</h3>
             <div className="table-container">
               <table className="table">
                 <thead>
                   <tr>
-                    <th>Log ID</th>
                     <th>Medicine Name</th>
                     <th>Dosage</th>
-                    <th>Schedule</th>
-                    <th>Scheduled Date</th>
-                    <th>Status</th>
-                    <th>Log Timestamp</th>
+                    <th>Remaining Quantity</th>
+                    <th>Schedules</th>
+                    <th>Instruction</th>
+                    <th>Start / End Date</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {historyStats?.history?.slice(0, 10).map((log) => (
-                    <tr key={log.id}>
-                      <td>#{log.id}</td>
-                      <td><strong>{log.medicine_name}</strong></td>
-                      <td>{log.dosage}</td>
-                      <td>{log.time_of_day}</td>
-                      <td>{log.scheduled_date}</td>
+                  {medicines.map((med) => (
+                    <tr key={med.id}>
+                      <td><strong>{med.name}</strong></td>
+                      <td>{med.dosage}</td>
+                      <td>{med.quantity} left</td>
                       <td>
-                        <span className={`badge ${log.status === "Taken" ? "badge-success" : log.status === "Missed" ? "badge-danger" : "badge-secondary"}`}>
-                          {log.status}
-                        </span>
+                        <div style={{ display: "flex", gap: "0.2rem", flexWrap: "wrap" }}>
+                          {med.reminder_schedules?.map(s => (
+                            <span key={s.id} className="badge badge-primary" style={{ fontSize: "0.7rem", whiteSpace: "nowrap" }}>
+                              {s.scheduled_time}
+                            </span>
+                          ))}
+                          {(!med.reminder_schedules || med.reminder_schedules.length === 0) && <span style={{ color: "var(--text-light)" }}>—</span>}
+                        </div>
                       </td>
-                      <td style={{ fontSize: "0.8rem" }}>{new Date(log.action_time).toLocaleString()}</td>
+                      <td>{med.food_relation}</td>
+                      <td style={{ fontSize: "0.8rem", color: "var(--text-light)" }}>
+                        {med.start_date} to {med.end_date}
+                      </td>
+                      <td>
+                        <div style={{ display: "flex", gap: "0.4rem" }}>
+                          <button onClick={() => openEditModal(med)} className="btn btn-secondary" style={{ padding: "0.2rem 0.4rem", fontSize: "0.75rem" }}>Edit</button>
+                          <button onClick={() => handleDeleteMedicine(med.id)} className="btn btn-danger" style={{ padding: "0.2rem 0.4rem", fontSize: "0.75rem", background: "#ef4444", borderColor: "#ef4444", color: "#fff" }}>Delete</button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
-                  {(!historyStats?.history || historyStats.history.length === 0) && (
+                  {medicines.length === 0 && (
                     <tr>
-                      <td colSpan="7" style={{ textAlign: "center", padding: "1.5rem", color: "var(--text-light)" }}>No history logs recorded yet.</td>
+                      <td colSpan="7" style={{ textAlign: "center", padding: "3rem", color: "var(--text-light)" }}>No medications tracked yet. Add your first medicine to get started!</td>
                     </tr>
                   )}
                 </tbody>
@@ -554,12 +533,55 @@ const PatientDashboard = ({ auth }) => {
                 <input type="text" className="form-input" required value={medFrequency} onChange={(e) => setMedFrequency(e.target.value)} placeholder="e.g. Daily or Every 12 Hours" />
               </div>
 
+              {/* Dynamic Reminder Times section */}
               <div className="form-group" style={{ marginBottom: "1rem" }}>
-                <label className="form-label">Reminders Scheduling (Select times)</label>
-                <div style={{ display: "flex", gap: "1rem", marginTop: "0.25rem" }}>
-                  <label><input type="checkbox" checked={medMorning} onChange={(e) => setMedMorning(e.target.checked)} /> Morning (08:00)</label>
-                  <label><input type="checkbox" checked={medAfternoon} onChange={(e) => setMedAfternoon(e.target.checked)} /> Afternoon (14:00)</label>
-                  <label><input type="checkbox" checked={medNight} onChange={(e) => setMedNight(e.target.checked)} /> Night (20:00)</label>
+                <label className="form-label">Times Per Day</label>
+                <select className="form-input" value={medTimesPerDay} onChange={(e) => handleTimesPerDayChange(e.target.value)}>
+                  <option value="Once Daily">Once Daily</option>
+                  <option value="Twice Daily">Twice Daily</option>
+                  <option value="Three Times Daily">Three Times Daily</option>
+                  <option value="Four Times Daily">Four Times Daily</option>
+                  <option value="Five Times Daily">Five Times Daily</option>
+                  <option value="Six Times Daily">Six Times Daily</option>
+                  <option value="Custom">Custom</option>
+                </select>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: "1rem" }}>
+                <label className="form-label">Reminder Times</label>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "0.25rem" }}>
+                  {medReminderTimes.map((t, index) => (
+                    <div key={index} style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                      <span style={{ fontSize: "0.85rem", color: "var(--text-light)", width: "60px" }}>Time {index + 1}:</span>
+                      <input
+                        type="time"
+                        className="form-input"
+                        required
+                        value={t}
+                        onChange={(e) => handleTimeChange(index, e.target.value)}
+                        style={{ flex: 1 }}
+                      />
+                      {medTimesPerDay === "Custom" && medReminderTimes.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveTimeInput(index)}
+                          style={{ background: "#ef4444", color: "#fff", border: "none", borderRadius: "6px", width: "32px", height: "32px", cursor: "pointer", display: "flex", alignItems: "center", justify: "center" }}
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  {medTimesPerDay === "Custom" && (
+                    <button
+                      type="button"
+                      onClick={handleAddTimeInput}
+                      className="btn btn-secondary"
+                      style={{ padding: "0.4rem", fontSize: "0.8rem", marginTop: "0.25rem" }}
+                    >
+                      + Add Reminder Time
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -619,12 +641,55 @@ const PatientDashboard = ({ auth }) => {
                 <input type="text" className="form-input" required value={medFrequency} onChange={(e) => setMedFrequency(e.target.value)} />
               </div>
 
+              {/* Dynamic Reminder Times section (Edit) */}
               <div className="form-group" style={{ marginBottom: "1rem" }}>
-                <label className="form-label">Reminders Scheduling (Select times)</label>
-                <div style={{ display: "flex", gap: "1rem", marginTop: "0.25rem" }}>
-                  <label><input type="checkbox" checked={medMorning} onChange={(e) => setMedMorning(e.target.checked)} /> Morning (08:00)</label>
-                  <label><input type="checkbox" checked={medAfternoon} onChange={(e) => setMedAfternoon(e.target.checked)} /> Afternoon (14:00)</label>
-                  <label><input type="checkbox" checked={medNight} onChange={(e) => setMedNight(e.target.checked)} /> Night (20:00)</label>
+                <label className="form-label">Times Per Day</label>
+                <select className="form-input" value={medTimesPerDay} onChange={(e) => handleTimesPerDayChange(e.target.value)}>
+                  <option value="Once Daily">Once Daily</option>
+                  <option value="Twice Daily">Twice Daily</option>
+                  <option value="Three Times Daily">Three Times Daily</option>
+                  <option value="Four Times Daily">Four Times Daily</option>
+                  <option value="Five Times Daily">Five Times Daily</option>
+                  <option value="Six Times Daily">Six Times Daily</option>
+                  <option value="Custom">Custom</option>
+                </select>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: "1rem" }}>
+                <label className="form-label">Reminder Times</label>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "0.25rem" }}>
+                  {medReminderTimes.map((t, index) => (
+                    <div key={index} style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                      <span style={{ fontSize: "0.85rem", color: "var(--text-light)", width: "60px" }}>Time {index + 1}:</span>
+                      <input
+                        type="time"
+                        className="form-input"
+                        required
+                        value={t}
+                        onChange={(e) => handleTimeChange(index, e.target.value)}
+                        style={{ flex: 1 }}
+                      />
+                      {medTimesPerDay === "Custom" && medReminderTimes.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveTimeInput(index)}
+                          style={{ background: "#ef4444", color: "#fff", border: "none", borderRadius: "6px", width: "32px", height: "32px", cursor: "pointer", display: "flex", alignItems: "center", justify: "center" }}
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  {medTimesPerDay === "Custom" && (
+                    <button
+                      type="button"
+                      onClick={handleAddTimeInput}
+                      className="btn btn-secondary"
+                      style={{ padding: "0.4rem", fontSize: "0.8rem", marginTop: "0.25rem" }}
+                    >
+                      + Add Reminder Time
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -657,42 +722,6 @@ const PatientDashboard = ({ auth }) => {
                 <button type="submit" className="btn btn-primary">Save Changes</button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* Milestone 3 Professional Modal */}
-      {showM3Modal && (
-        <div className="modal-backdrop flex-center" style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", background: "rgba(0,0,0,0.5)", zIndex: 1000 }}>
-          <div className="card modal-content" style={{ width: "500px", padding: "2rem", borderRadius: "12px", border: "1px solid #bfdbfe", background: "#f8fafc" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem", borderBottom: "1px solid var(--border-color)", paddingBottom: "0.75rem" }}>
-              <h3 className="card-title" style={{ margin: 0, display: "flex", alignItems: "center", gap: "0.5rem", color: "var(--primary-color)" }}>
-                <span>✨</span> Feature Not Available Yet
-              </h3>
-              <button onClick={() => setShowM3Modal(false)} style={{ background: "none", border: "none", fontSize: "1.5rem", cursor: "pointer", color: "var(--text-light)" }}>&times;</button>
-            </div>
-            
-            <p style={{ fontSize: "0.95rem", lineHeight: "1.6", color: "var(--text-primary)", marginBottom: "1.25rem" }}>
-              This feature is planned for <strong>Milestone 3</strong>. It will be available after the completion and mentor approval of Milestone 2.
-            </p>
-
-            <div style={{ background: "#ffffff", padding: "1rem", borderRadius: "8px", border: "1px solid #e2e8f0", marginBottom: "1.5rem" }}>
-              <strong style={{ display: "block", marginBottom: "0.75rem", fontSize: "0.9rem", color: "var(--text-primary)" }}>Upcoming Features:</strong>
-              <ul style={{ listStyleType: "none", padding: 0, margin: 0, display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem 1rem", fontSize: "0.85rem", color: "var(--text-secondary)" }}>
-                <li>• OCR Prescription Scanner</li>
-                <li>• OCR Medicine Recognition</li>
-                <li>• AI Refill Prediction</li>
-                <li>• Disease Analysis</li>
-                <li>• OpenAI Assistant</li>
-                <li>• Medicine Image Recognition</li>
-                <li>• Refill Analytics</li>
-                <li>• Smart AI Recommendations</li>
-              </ul>
-            </div>
-
-            <div style={{ display: "flex", justifyContent: "flex-end" }}>
-              <button onClick={() => setShowM3Modal(false)} className="btn btn-primary">Understood</button>
-            </div>
           </div>
         </div>
       )}
