@@ -18,13 +18,13 @@ import About from "./pages/About";
 import Features from "./pages/Features";
 import Contact from "./pages/Contact";
 
-// Page transition variants (Lightweight snappy transitions)
+// Page transition variants — smooth healthcare-grade transitions
 const pageVariants = {
-  initial: { opacity: 0, y: 16, filter: "blur(4px)" },
-  enter:   { opacity: 1, y: 0,  filter: "blur(0px)" },
-  exit:    { opacity: 0, y: -8, filter: "blur(2px)" },
+  initial: { opacity: 0, y: 12, scale: 0.99, filter: "blur(3px)" },
+  enter:   { opacity: 1, y: 0,  scale: 1,    filter: "blur(0px)", transition: { duration: 0.42, ease: [0.25, 0.46, 0.45, 0.94] } },
+  exit:    { opacity: 0, y: -8, scale: 0.99, filter: "blur(2px)", transition: { duration: 0.28, ease: [0.55, 0, 1, 0.45] } },
 };
-const pageTransition = { duration: 0.5, ease: "easeInOut" };
+const pageTransition = { duration: 0.42, ease: [0.25, 0.46, 0.45, 0.94] };
 
 // ── Cinematic Global Loader ───────────────────────────
 const Loader = ({ onComplete }) => {
@@ -124,13 +124,13 @@ const AnimatedRoutes = ({ auth, setAuth, darkMode, setDarkMode, loading, setLoad
         {loading && <Loader onComplete={handleLoaderComplete} />}
       </AnimatePresence>
 
+      <AnimatePresence mode="wait" initial={false}>
       <motion.div
         key={location.pathname}
         variants={pageVariants}
         initial="initial"
         animate="enter"
         exit="exit"
-        transition={pageTransition}
         style={{ minHeight: "100vh" }}
       >
         <Routes location={location}>
@@ -227,6 +227,7 @@ const AnimatedRoutes = ({ auth, setAuth, darkMode, setDarkMode, loading, setLoad
           <Route path="*" element={<NotFound />} />
         </Routes>
       </motion.div>
+      </AnimatePresence>
     </>
   );
 };

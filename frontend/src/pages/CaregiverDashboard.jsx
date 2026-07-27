@@ -88,8 +88,15 @@ const CaregiverDashboard = ({ auth }) => {
     return (
       <div className="app-container">
         <Sidebar role={auth.role} email={auth.email} />
-        <div className="main-content flex-center">
-          <div className="spinner" />
+        <div className="main-content" style={{ flex: 1, display: "flex", flexDirection: "column", height: "100vh", overflowY: "auto" }}>
+          <Navbar pageTitle="Caregiver Dashboard" />
+          <div style={{ padding: "2rem", maxWidth: "1400px", margin: "0 auto", width: "100%" }}>
+            <div className="skeleton" style={{ height: "120px", borderRadius: "20px", marginBottom: "2rem" }} />
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "1.25rem", marginBottom: "2rem" }}>
+              {[...Array(4)].map((_, i) => <div key={i} className="skeleton" style={{ height: "100px", borderRadius: "14px" }} />)}
+            </div>
+            <div className="skeleton" style={{ height: "350px", borderRadius: "20px" }} />
+          </div>
         </div>
       </div>
     );
@@ -136,12 +143,13 @@ const CaregiverDashboard = ({ auth }) => {
         <main className="content-area" style={{ padding: "2rem" }}>
           {errorMsg && <div className="alert alert-danger">{errorMsg}</div>}
           
-          <div className="welcome-banner card" style={{ borderLeft: "4px solid var(--primary-color)", marginBottom: "2rem" }}>
+          <div className="page-section stagger-1 welcome-banner card" style={{ borderLeft: "4px solid var(--primary-color)", marginBottom: "2rem" }}
+          >
             <h2>Welcome back, {profile.full_name || "Caregiver"}!</h2>
             <p>You are logged into your Caregiver home dashboard. Below is your profile and assigned patient roster.</p>
           </div>
 
-          <div className="grid grid-cols-2" style={{ gap: "1.5rem", marginBottom: "2rem" }}>
+          <div className="page-section stagger-2 grid grid-cols-2" style={{ gap: "1.5rem", marginBottom: "2rem" }}>
             {/* Profile Information Card */}
             <div className="card">
               <h3 className="card-title">Caregiver Profile</h3>

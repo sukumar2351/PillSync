@@ -3,7 +3,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { 
   Plus, Bell, Pill, Check, LogOut, ShieldAlert, Award, Calendar, 
   RefreshCw, X, Edit, Trash2, Activity, Users, Search, Filter, 
-  AlertTriangle, Clock, CheckCircle, ArrowUpDown, Sparkles
+  AlertTriangle, Clock, CheckCircle2, ArrowUpDown, Sparkles,
+  TrendingUp, User, History, Zap, Sliders, ChevronRight, Heart, Mail, CheckCircle
 } from "lucide-react";
 import { authService, medicineService } from "../services/api";
 import Sidebar from "../components/Sidebar";
@@ -21,7 +22,10 @@ const PatientDashboard = ({ auth, setAuth }) => {
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
 
-  // Search & Filter Toolbar States
+  // Time & Date State for Live Clock in Hero
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  // Search & Filter Toolbar States for Medicine Management Table
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [stockFilter, setStockFilter] = useState("all");
@@ -80,6 +84,11 @@ const PatientDashboard = ({ auth, setAuth }) => {
   useEffect(() => {
     fetchData();
 
+    // Clock update interval
+    const clockTimer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+
     // Request Notification permission
     if ("Notification" in window && Notification.permission === "default") {
       Notification.requestPermission();
@@ -94,7 +103,10 @@ const PatientDashboard = ({ auth, setAuth }) => {
       }
     }, 15000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(clockTimer);
+      clearInterval(interval);
+    };
   }, []);
 
   // Auto-clear success messages after 4 seconds
@@ -125,9 +137,7 @@ const PatientDashboard = ({ auth, setAuth }) => {
     }
   }, [reminders, snoozedMap]);
 
-  // Calculated Statistics
-  const todayStr = useMemo(() => new Date().toISOString().split("T")[0], []);
-
+  // Calculated Statistics & Breakdown
   const stats = useMemo(() => {
     const total = medicines.length;
     let active = 0;
@@ -155,27 +165,40 @@ const PatientDashboard = ({ auth, setAuth }) => {
       }
     });
 
+    const taken = reminders.filter(r => r.status === "Taken").length;
+    const missed = reminders.filter(r => r.status === "Missed").length;
+    const pending = reminders.filter(r => r.status === "Pending").length;
+    const upcoming = pending;
+
+    const todayTotal = reminders.length;
+    const todayAdherencePct = todayTotal > 0 ? Math.round((taken / todayTotal) * 100) : 100;
+    const overallAdherence = historyStats?.adherence_rate || 0;
+
     return {
       total,
       active,
       lowStock,
       expiringSoon,
-      todayDoses: reminders.length,
+      todayDoses: todayTotal,
+      taken,
+      pending,
+      missed,
+      upcoming,
+      todayAdherencePct,
+      overallAdherence,
       completedCourses
     };
-  }, [medicines, reminders]);
+  }, [medicines, reminders, historyStats]);
 
   // Filtered and Sorted Medicines
   const filteredMedicines = useMemo(() => {
     return medicines.filter((med) => {
-      // Search filter
       const matchesSearch = 
         med.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         med.dosage.toLowerCase().includes(searchTerm.toLowerCase());
 
       if (!matchesSearch) return false;
 
-      // Status filter
       const todayDate = new Date();
       const endDate = med.end_date ? new Date(med.end_date) : null;
       const isCompleted = endDate && endDate < todayDate;
@@ -185,7 +208,6 @@ const PatientDashboard = ({ auth, setAuth }) => {
       if (statusFilter === "completed" && !isCompleted) return false;
       if (statusFilter === "expiring" && !isExpiring) return false;
 
-      // Stock filter
       if (stockFilter === "low" && med.quantity > 5) return false;
       if (stockFilter === "sufficient" && med.quantity <= 5) return false;
 
@@ -407,8 +429,34 @@ const PatientDashboard = ({ auth, setAuth }) => {
     return (
       <div className="app-container" style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
         <Sidebar role={auth?.role} email={auth?.email} />
-        <div className="main-content flex-center" style={{ flex: 1, display: "flex", flexDirection: "column", height: "100vh", overflowY: "auto" }}>
-          <div className="spinner" />
+        <div className="main-content" style={{ flex: 1, display: "flex", flexDirection: "column", height: "100vh", overflowY: "auto" }}>
+          <Navbar pageTitle="Patient Dashboard" />
+          {/* Premium Skeleton Loader */}
+          <div style={{ padding: "2rem", maxWidth: "1440px", margin: "0 auto", width: "100%" }}>
+            {/* Hero skeleton */}
+            <div className="skeleton" style={{ height: "140px", borderRadius: "24px", marginBottom: "2rem" }} />
+            {/* Quick actions skeleton */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "1.25rem", marginBottom: "2.5rem" }}>
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="skeleton" style={{ height: "80px", borderRadius: "16px" }} />
+              ))}
+            </div>
+            {/* Stats skeleton */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "1.25rem", marginBottom: "2.5rem" }}>
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="skeleton" style={{ height: "90px", borderRadius: "14px" }} />
+              ))}
+            </div>
+            {/* Content skeleton */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.5rem", marginBottom: "2.5rem" }}>
+              <div className="skeleton" style={{ height: "320px", borderRadius: "20px" }} />
+              <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+                <div className="skeleton" style={{ height: "150px", borderRadius: "20px" }} />
+                <div className="skeleton" style={{ height: "150px", borderRadius: "20px" }} />
+              </div>
+            </div>
+            <div className="skeleton" style={{ height: "400px", borderRadius: "20px" }} />
+          </div>
         </div>
       </div>
     );
@@ -416,17 +464,13 @@ const PatientDashboard = ({ auth, setAuth }) => {
 
   const profile = userData?.profile || {};
 
-  // Split reminders into different compliance categories
-  const completedReminders = reminders.filter(r => r.status === "Taken");
-  const missedReminders = reminders.filter(r => r.status === "Missed");
-  const pendingReminders = reminders.filter(r => r.status === "Pending");
-
   return (
     <div className="app-container" style={{ 
       display: "flex", 
       height: "100vh", 
       overflow: "hidden",
-      position: "relative"
+      position: "relative",
+      backgroundColor: "#F8FAFC"
     }}>
       {/* Subtle Healthcare SVG Pattern Overlay */}
       <div style={{
@@ -434,8 +478,8 @@ const PatientDashboard = ({ auth, setAuth }) => {
         inset: 0,
         pointerEvents: "none",
         zIndex: 0,
-        opacity: 0.03,
-        backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%232563EB' fill-rule='evenodd'%3E%3Cpath d='M27 27V12h6v15h15v6H33v15h-6V33H12v-6h15z'/%3E%3C/g%3E%3C/svg%3E")`,
+        opacity: 0.025,
+        backgroundImage: `url("data:image/svg+xml,%3Csvg width='80' height='80' viewBox='0 0 80 80' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%232563EB' fill-rule='evenodd'%3E%3Cpath d='M36 36V16h8v20h20v8H44v20h-8V44H16v-8h20z'/%3E%3C/g%3E%3C/svg%3E")`,
         backgroundRepeat: "repeat"
       }} />
 
@@ -444,12 +488,14 @@ const PatientDashboard = ({ auth, setAuth }) => {
       <div className="main-content" style={{ flex: 1, display: "flex", flexDirection: "column", height: "100vh", overflowY: "auto", zIndex: 1 }}>
         <Navbar pageTitle="Patient Dashboard" />
 
-        <main className="content-area" style={{ padding: "2rem", maxWidth: "1400px", margin: "0 auto", width: "100%" }}>
+        <main className="content-area" style={{ padding: "2rem", maxWidth: "1440px", margin: "0 auto", width: "100%" }}>
+          
+          {/* Toast Alert Notifications */}
           {errorMsg && (
             <div className="alert alert-danger" style={{ 
               marginBottom: "1.5rem", 
               borderRadius: "12px", 
-              boxShadow: "0 4px 12px rgba(239, 68, 68, 0.15)",
+              boxShadow: "0 4px 14px rgba(239, 68, 68, 0.15)",
               display: "flex",
               justify: "space-between",
               alignItems: "center"
@@ -463,7 +509,7 @@ const PatientDashboard = ({ auth, setAuth }) => {
             <div className="alert alert-success" style={{ 
               marginBottom: "1.5rem", 
               borderRadius: "12px", 
-              boxShadow: "0 4px 12px rgba(16, 185, 129, 0.15)",
+              boxShadow: "0 4px 14px rgba(16, 185, 129, 0.15)",
               display: "flex",
               justify: "space-between",
               alignItems: "center"
@@ -473,231 +519,490 @@ const PatientDashboard = ({ auth, setAuth }) => {
             </div>
           )}
 
-          {/* Welcome Banner Card */}
-          <div className="welcome-banner card" style={{ 
-            borderLeft: "4px solid #2563EB", 
+          {/* ========================================================= */}
+          {/* 1. WELCOME HERO SECTION                                    */}
+          {/* ========================================================= */}
+          <div className="page-section stagger-1" style={{
+            background: "linear-gradient(135deg, #1E1B4B 0%, #1E293B 50%, #0F172A 100%)",
+            borderRadius: "24px",
+            padding: "2.25rem",
+            color: "#FFFFFF",
             marginBottom: "2rem",
-            background: "linear-gradient(135deg, rgba(37,99,235,0.06) 0%, rgba(6,182,212,0.04) 100%)",
-            borderRadius: "16px",
-            boxShadow: "0 8px 24px rgba(0,0,0,0.04)"
+            boxShadow: "0 20px 40px rgba(15, 23, 42, 0.15)",
+            position: "relative",
+            overflow: "hidden",
+            display: "flex",
+            flexDirection: "column",
+            gap: "1.5rem"
           }}>
-            <h2>Welcome back, {profile.full_name || "Patient"}!</h2>
-            <p>You are logged into your Patient Dashboard. Manage your medicines, reminders, medication history and health records from here.</p>
-          </div>
+            {/* Background Ambient Glow Orbs */}
+            <div style={{
+              position: "absolute",
+              top: "-50px",
+              right: "-50px",
+              width: "250px",
+              height: "250px",
+              borderRadius: "50%",
+              background: "radial-gradient(circle, rgba(37,99,235,0.3) 0%, rgba(0,0,0,0) 70%)",
+              pointerEvents: "none"
+            }} />
+            <div style={{
+              position: "absolute",
+              bottom: "-40px",
+              left: "30%",
+              width: "200px",
+              height: "200px",
+              borderRadius: "50%",
+              background: "radial-gradient(circle, rgba(6,182,212,0.2) 0%, rgba(0,0,0,0) 70%)",
+              pointerEvents: "none"
+            }} />
 
-          {/* Two-Column Profile Grid */}
-          <div className="grid grid-cols-2" style={{ gap: "1.5rem", marginBottom: "2rem" }}>
-            {/* Card 1: Patient Profile */}
-            <div className="card" style={{ borderRadius: "16px", boxShadow: "0 4px 20px rgba(0,0,0,0.03)" }}>
-              <h3 className="card-title">Patient Profile</h3>
-              <div className="info-list">
-                <div className="info-item">
-                  <span className="info-label">Name:</span>
-                  <span className="info-val">{profile.full_name || "Not provided"}</span>
-                </div>
-                <div className="info-item">
-                  <span className="info-label">Email:</span>
-                  <span className="info-val">{userData?.email}</span>
-                </div>
-                <div className="info-item">
-                  <span className="info-label">Phone:</span>
-                  <span className="info-val">{profile.phone || "—"}</span>
-                </div>
-                <div className="info-item">
-                  <span className="info-label">Gender:</span>
-                  <span className="info-val capitalize">{profile.gender || "—"}</span>
-                </div>
-                <div className="info-item">
-                  <span className="info-label">Age:</span>
-                  <span className="info-val">{profile.age || "—"}</span>
-                </div>
-                <div className="info-item">
-                  <span className="info-label">Blood Group:</span>
-                  <span className="info-val">{profile.blood_group || "—"}</span>
-                </div>
-                <div className="info-item">
-                  <span className="info-label">Account Status:</span>
-                  <span className={`badge ${profile.account_status === "Active" ? "badge-success" : "badge-secondary"}`}>
-                    {profile.account_status || "Active"}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "1.5rem", zIndex: 1 }}>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                  <span style={{ 
+                    padding: "0.25rem 0.75rem", 
+                    borderRadius: "20px", 
+                    background: "rgba(255,255,255,0.12)", 
+                    fontSize: "0.8rem", 
+                    fontWeight: 600,
+                    letterSpacing: "0.03em",
+                    backdropFilter: "blur(4px)"
+                  }}>
+                    {currentTime.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })} • {currentTime.toLocaleTimeString()}
                   </span>
+                </div>
+                <h1 style={{ margin: 0, fontSize: "2rem", fontWeight: 800, letterSpacing: "-0.02em" }}>
+                  Welcome back, {profile.full_name || "Patient"}! 👋
+                </h1>
+                <p style={{ margin: "0.5rem 0 0", color: "#94A3B8", fontSize: "0.98rem", maxWidth: "600px", lineHeight: 1.5 }}>
+                  You have <strong style={{ color: "#60A5FA" }}>{stats.todayDoses} medicines</strong> scheduled today. 
+                  &nbsp;<span style={{ color: "#4ADE80" }}>{stats.taken} completed</span>, <span style={{ color: "#F87171" }}>{stats.pending} remaining</span>.
+                </p>
+              </div>
+
+              {/* Today's Adherence Circle Badge */}
+              <div style={{ 
+                background: "rgba(255, 255, 255, 0.08)", 
+                padding: "1.25rem 1.75rem", 
+                borderRadius: "20px", 
+                backdropFilter: "blur(10px)",
+                border: "1px solid rgba(255, 255, 255, 0.12)",
+                display: "flex",
+                alignItems: "center",
+                gap: "1.25rem"
+              }}>
+                <div style={{ textAlign: "right" }}>
+                  <span style={{ fontSize: "0.8rem", color: "#94A3B8", textTransform: "uppercase", fontWeight: 600, letterSpacing: "0.05em", display: "block" }}>Today's Compliance</span>
+                  <strong style={{ fontSize: "1.85rem", fontWeight: 900, color: stats.todayAdherencePct === 100 ? "#4ADE80" : "#60A5FA" }}>
+                    {stats.todayAdherencePct}%
+                  </strong>
+                </div>
+                <div style={{ width: "48px", height: "48px", borderRadius: "12px", background: "rgba(37,99,235,0.25)", display: "flex", alignItems: "center", justifyContent: "center", color: "#60A5FA" }}>
+                  <TrendingUp size={24} />
                 </div>
               </div>
             </div>
 
-            {/* Card 2: Address Information */}
-            <div className="card" style={{ borderRadius: "16px", boxShadow: "0 4px 20px rgba(0,0,0,0.03)" }}>
-              <h3 className="card-title">Address Information</h3>
-              <div className="info-list">
-                <div className="info-item-block" style={{ marginBottom: "1rem" }}>
-                  <span className="info-label-block">Home Address</span>
-                  <p className="info-val-block">{profile.address || "No address provided."}</p>
+            {/* Health Quote Banner */}
+            <div style={{ 
+              background: "rgba(255, 255, 255, 0.05)", 
+              padding: "0.85rem 1.25rem", 
+              borderRadius: "12px", 
+              borderLeft: "3px solid #10B981", 
+              fontSize: "0.88rem", 
+              color: "#CBD5E1",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.75rem",
+              zIndex: 1
+            }}>
+              <Sparkles size={18} color="#10B981" />
+              <span>"Consistency in your medication schedule is key to long-term wellness. Keep up the good momentum!"</span>
+            </div>
+          </div>
+
+          {/* ========================================================= */}
+          {/* 2. QUICK ACTIONS SECTION                                   */}
+          {/* ========================================================= */}
+          <div className="page-section stagger-2" style={{ marginBottom: "2.5rem" }}>
+            <h3 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#1E293B", marginBottom: "1rem", letterSpacing: "-0.01em" }}>
+              Quick Actions
+            </h3>
+            <div style={{ 
+              display: "grid", 
+              gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", 
+              gap: "1.25rem" 
+            }}>
+              {/* Action 1: Add Medicine */}
+              <div 
+                onClick={() => { resetForm(); setShowAddModal(true); }}
+                style={{ 
+                  background: "#FFFFFF", 
+                  padding: "1.25rem", 
+                  borderRadius: "16px", 
+                  border: "1px solid #E2E8F0",
+                  boxShadow: "0 4px 14px rgba(0,0,0,0.03)",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "1rem",
+                  transition: "all 0.2s ease"
+                }}
+                className="hover-card"
+              >
+                <div style={{ width: "44px", height: "44px", borderRadius: "12px", background: "rgba(37,99,235,0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "#2563EB" }}>
+                  <Plus size={22} />
                 </div>
-                <div className="info-item">
-                  <span className="info-label">Emergency Contact:</span>
-                  <span className="info-val">{profile.emergency_contact || "—"}</span>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 700, color: "#1E293B" }}>Add Medicine</h4>
+                  <span style={{ fontSize: "0.78rem", color: "#64748B" }}>New prescription</span>
                 </div>
-                <div className="info-item">
-                  <span className="info-label">Assigned Caregiver:</span>
-                  <span className="info-val" style={{ fontWeight: "bold", color: "#2563EB" }}>
-                    {profile.caregiver_name || "No caregiver assigned"}
-                  </span>
+              </div>
+
+              {/* Action 2: Reminder Settings */}
+              <div 
+                onClick={() => navigate("/notifications-settings")}
+                style={{ 
+                  background: "#FFFFFF", 
+                  padding: "1.25rem", 
+                  borderRadius: "16px", 
+                  border: "1px solid #E2E8F0",
+                  boxShadow: "0 4px 14px rgba(0,0,0,0.03)",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "1rem",
+                  transition: "all 0.2s ease"
+                }}
+                className="hover-card"
+              >
+                <div style={{ width: "44px", height: "44px", borderRadius: "12px", background: "rgba(6,182,212,0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "#06B6D4" }}>
+                  <Bell size={22} />
+                </div>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 700, color: "#1E293B" }}>Reminder Settings</h4>
+                  <span style={{ fontSize: "0.78rem", color: "#64748B" }}>SMS & Email alerts</span>
+                </div>
+              </div>
+
+              {/* Action 3: Profile Settings */}
+              <div 
+                onClick={() => navigate("/profile")}
+                style={{ 
+                  background: "#FFFFFF", 
+                  padding: "1.25rem", 
+                  borderRadius: "16px", 
+                  border: "1px solid #E2E8F0",
+                  boxShadow: "0 4px 14px rgba(0,0,0,0.03)",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "1rem",
+                  transition: "all 0.2s ease"
+                }}
+                className="hover-card"
+              >
+                <div style={{ width: "44px", height: "44px", borderRadius: "12px", background: "rgba(16,185,129,0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "#10B981" }}>
+                  <User size={22} />
+                </div>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 700, color: "#1E293B" }}>My Profile</h4>
+                  <span style={{ fontSize: "0.78rem", color: "#64748B" }}>Update profile info</span>
+                </div>
+              </div>
+
+              {/* Action 4: Medication History */}
+              <div 
+                onClick={() => {
+                  const el = document.getElementById("medication-table-section");
+                  if (el) el.scrollIntoView({ behavior: "smooth" });
+                }}
+                style={{ 
+                  background: "#FFFFFF", 
+                  padding: "1.25rem", 
+                  borderRadius: "16px", 
+                  border: "1px solid #E2E8F0",
+                  boxShadow: "0 4px 14px rgba(0,0,0,0.03)",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "1rem",
+                  transition: "all 0.2s ease"
+                }}
+                className="hover-card"
+              >
+                <div style={{ width: "44px", height: "44px", borderRadius: "12px", background: "rgba(99,102,241,0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "#6366F1" }}>
+                  <History size={22} />
+                </div>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 700, color: "#1E293B" }}>Medication History</h4>
+                  <span style={{ fontSize: "0.78rem", color: "#64748B" }}>View full list</span>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Today's Medication & Compliance Section */}
-          <div className="grid grid-cols-2" style={{ gap: "1.5rem", marginBottom: "2.5rem" }}>
+          {/* ========================================================= */}
+          {/* 3. REDESIGNED STATISTICS CARDS GRID                        */}
+          {/* ========================================================= */}
+          <div className="page-section stagger-3" style={{ marginBottom: "2.5rem" }}>
+            <h3 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#1E293B", marginBottom: "1rem", letterSpacing: "-0.01em" }}>
+              Key Statistics & Overview
+            </h3>
+            <div style={{ 
+              display: "grid", 
+              gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", 
+              gap: "1.25rem" 
+            }}>
+              {/* Total Medicines */}
+              <div className="card" style={{ padding: "1.25rem", borderRadius: "16px", borderLeft: "4px solid #2563EB", background: "#FFFFFF", boxShadow: "0 4px 14px rgba(0,0,0,0.03)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "#64748B", textTransform: "uppercase" }}>Total Medicines</span>
+                  <Pill size={18} color="#2563EB" />
+                </div>
+                <div style={{ fontSize: "1.8rem", fontWeight: 800, color: "#1E293B", margin: "0.4rem 0 0.1rem" }}>{stats.total}</div>
+                <span style={{ fontSize: "0.75rem", color: "#64748B" }}>Registered list</span>
+              </div>
+
+              {/* Today's Doses */}
+              <div className="card" style={{ padding: "1.25rem", borderRadius: "16px", borderLeft: "4px solid #06B6D4", background: "#FFFFFF", boxShadow: "0 4px 14px rgba(0,0,0,0.03)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "#64748B", textTransform: "uppercase" }}>Today's Doses</span>
+                  <Calendar size={18} color="#06B6D4" />
+                </div>
+                <div style={{ fontSize: "1.8rem", fontWeight: 800, color: "#06B6D4", margin: "0.4rem 0 0.1rem" }}>{stats.todayDoses}</div>
+                <span style={{ fontSize: "0.75rem", color: "#64748B" }}>Scheduled today</span>
+              </div>
+
+              {/* Taken */}
+              <div className="card" style={{ padding: "1.25rem", borderRadius: "16px", borderLeft: "4px solid #10B981", background: "#FFFFFF", boxShadow: "0 4px 14px rgba(0,0,0,0.03)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "#64748B", textTransform: "uppercase" }}>Doses Taken</span>
+                  <CheckCircle2 size={18} color="#10B981" />
+                </div>
+                <div style={{ fontSize: "1.8rem", fontWeight: 800, color: "#10B981", margin: "0.4rem 0 0.1rem" }}>{stats.taken}</div>
+                <span style={{ fontSize: "0.75rem", color: "#64748B" }}>Logged successfully</span>
+              </div>
+
+              {/* Pending */}
+              <div className="card" style={{ padding: "1.25rem", borderRadius: "16px", borderLeft: "4px solid #F59E0B", background: "#FFFFFF", boxShadow: "0 4px 14px rgba(0,0,0,0.03)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "#64748B", textTransform: "uppercase" }}>Pending</span>
+                  <Clock size={18} color="#F59E0B" />
+                </div>
+                <div style={{ fontSize: "1.8rem", fontWeight: 800, color: "#F59E0B", margin: "0.4rem 0 0.1rem" }}>{stats.pending}</div>
+                <span style={{ fontSize: "0.75rem", color: "#64748B" }}>Awaiting logs</span>
+              </div>
+
+              {/* Missed */}
+              <div className="card" style={{ padding: "1.25rem", borderRadius: "16px", borderLeft: "4px solid #EF4444", background: "#FFFFFF", boxShadow: "0 4px 14px rgba(0,0,0,0.03)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "#64748B", textTransform: "uppercase" }}>Missed</span>
+                  <AlertTriangle size={18} color="#EF4444" />
+                </div>
+                <div style={{ fontSize: "1.8rem", fontWeight: 800, color: "#EF4444", margin: "0.4rem 0 0.1rem" }}>{stats.missed}</div>
+                <span style={{ fontSize: "0.75rem", color: "#64748B" }}>Missed today</span>
+              </div>
+
+              {/* Overall Adherence */}
+              <div className="card" style={{ padding: "1.25rem", borderRadius: "16px", borderLeft: "4px solid #6366F1", background: "#FFFFFF", boxShadow: "0 4px 14px rgba(0,0,0,0.03)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "#64748B", textTransform: "uppercase" }}>Adherence</span>
+                  <Award size={18} color="#6366F1" />
+                </div>
+                <div style={{ fontSize: "1.8rem", fontWeight: 800, color: "#6366F1", margin: "0.4rem 0 0.1rem" }}>{stats.overallAdherence}%</div>
+                <span style={{ fontSize: "0.75rem", color: "#64748B" }}>Overall rate</span>
+              </div>
+            </div>
+          </div>
+
+          {/* ========================================================= */}
+          {/* 4. TODAY'S TIMELINE & HEALTH INSIGHTS GRID                 */}
+          {/* ========================================================= */}
+          <div className="page-section stagger-4 grid grid-cols-2" style={{ gap: "1.5rem", marginBottom: "2.5rem" }}>
             
-            {/* Today's Medicines (Checklist) */}
-            <div className="card" style={{ padding: "1.5rem", borderRadius: "16px", boxShadow: "0 4px 20px rgba(0,0,0,0.03)" }}>
-              <h3 className="card-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span>Today's Medicines Checklist</span>
-                <span className="badge badge-primary">{pendingReminders.length} Pending</span>
-              </h3>
-              <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginTop: "1rem" }}>
-                {pendingReminders.map((r) => (
-                  <div key={r.id} className="flex-center" style={{ justifyContent: "space-between", padding: "1rem", background: "var(--bg-secondary)", borderRadius: "12px", border: "1px solid var(--border)" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-                      <div style={{ width: "36px", height: "36px", borderRadius: "8px", background: "rgba(37,99,235,0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "#2563EB" }}>
-                        <Pill size={20} />
-                      </div>
-                      <div>
-                        <h4 style={{ margin: "0 0 0.25rem", fontSize: "0.95rem" }}>{r.name}</h4>
-                        <div style={{ fontSize: "0.8rem", color: "var(--text-light)", display: "flex", gap: "1rem" }}>
-                          <span>Dosage: <strong>{r.dosage}</strong></span>
-                          <span>Time: <strong>{r.scheduled_time}</strong></span>
-                          <span>Food: <strong>{r.food_relation}</strong></span>
+            {/* TODAY'S MEDICINE VERTICAL TIMELINE */}
+            <div className="card" style={{ padding: "1.75rem", borderRadius: "20px", boxShadow: "0 8px 30px rgba(0,0,0,0.03)", background: "#FFFFFF" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem" }}>
+                <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 800, color: "#1E293B", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <Clock size={20} color="#2563EB" /> Today's Schedule Timeline
+                </h3>
+                <span className="badge badge-primary">{reminders.length} Scheduled</span>
+              </div>
+
+              <div style={{ position: "relative", paddingLeft: "1.5rem" }}>
+                {/* Vertical Line */}
+                <div style={{ 
+                  position: "absolute", 
+                  left: "7px", 
+                  top: "10px", 
+                  bottom: "10px", 
+                  width: "2px", 
+                  background: "#E2E8F0" 
+                }} />
+
+                {reminders.map((r, idx) => {
+                  const isTaken = r.status === "Taken";
+                  const isMissed = r.status === "Missed";
+                  const isPending = r.status === "Pending";
+
+                  return (
+                    <div key={r.id} style={{ position: "relative", marginBottom: "1.5rem" }}>
+                      {/* Timeline Circle Bullet */}
+                      <div style={{ 
+                        position: "absolute", 
+                        left: "-1.85rem", 
+                        top: "2px", 
+                        width: "16px", 
+                        height: "16px", 
+                        borderRadius: "50%", 
+                        background: isTaken ? "#10B981" : isMissed ? "#EF4444" : "#2563EB",
+                        border: "3px solid #FFFFFF",
+                        boxShadow: "0 0 0 2px " + (isTaken ? "#10B981" : isMissed ? "#EF4444" : "#2563EB")
+                      }} />
+
+                      <div style={{ 
+                        background: "#F8FAFC", 
+                        padding: "1rem 1.25rem", 
+                        borderRadius: "14px", 
+                        border: "1px solid #E2E8F0",
+                        display: "flex",
+                        justify: "space-between",
+                        alignItems: "center",
+                        flexWrap: "wrap",
+                        gap: "0.75rem"
+                      }}>
+                        <div>
+                          <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", marginBottom: "0.25rem" }}>
+                            <strong style={{ fontSize: "0.85rem", color: "#2563EB" }}>{r.scheduled_time}</strong>
+                            <span style={{ fontSize: "0.75rem", color: "#64748B" }}>({r.food_relation})</span>
+                          </div>
+                          <h4 style={{ margin: "0 0 0.2rem", fontSize: "0.98rem", color: "#1E293B", fontWeight: 700 }}>{r.name}</h4>
+                          <span style={{ fontSize: "0.8rem", color: "#64748B" }}>Dosage: {r.dosage}</span>
+                        </div>
+
+                        {/* Actions or Status Badge */}
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                          {isPending ? (
+                            <>
+                              <button onClick={() => handleLogDose(r.id, "Taken", r.time_of_day)} className="btn btn-primary" style={{ padding: "0.35rem 0.75rem", fontSize: "0.78rem", display: "flex", alignItems: "center", gap: "0.3rem" }}>
+                                <Check size={14} /> Take
+                              </button>
+                              <button onClick={() => handleLogDose(r.id, "Missed", r.time_of_day)} className="btn btn-secondary" style={{ padding: "0.35rem 0.75rem", fontSize: "0.78rem", color: "#EF4444" }}>
+                                Miss
+                              </button>
+                              <button onClick={() => handleSnooze(r.id)} className="btn btn-secondary" style={{ padding: "0.35rem 0.75rem", fontSize: "0.78rem" }}>
+                                Snooze
+                              </button>
+                            </>
+                          ) : (
+                            <span style={{ 
+                              padding: "0.3rem 0.75rem", 
+                              borderRadius: "20px", 
+                              fontSize: "0.78rem", 
+                              fontWeight: 700,
+                              background: isTaken ? "rgba(16,185,129,0.12)" : "rgba(239,68,68,0.12)",
+                              color: isTaken ? "#10B981" : "#EF4444",
+                              border: "1px solid " + (isTaken ? "rgba(16,185,129,0.2)" : "rgba(239,68,68,0.2)")
+                            }}>
+                              {r.status}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
-                    <div style={{ display: "flex", gap: "0.5rem" }}>
-                      <button onClick={() => handleLogDose(r.id, "Taken", r.time_of_day)} className="btn btn-primary" style={{ padding: "0.4rem 0.8rem", fontSize: "0.8rem", display: "flex", alignItems: "center", gap: "0.3rem" }}>
-                        <Check size={14} /> Take
-                      </button>
-                      <button onClick={() => handleLogDose(r.id, "Missed", r.time_of_day)} className="btn btn-secondary" style={{ padding: "0.4rem 0.8rem", fontSize: "0.8rem", color: "#EF4444" }}>
-                        Miss
-                      </button>
-                      <button onClick={() => handleSnooze(r.id)} className="btn btn-secondary" style={{ padding: "0.4rem 0.8rem", fontSize: "0.8rem" }}>
-                        Snooze
-                      </button>
-                    </div>
-                  </div>
-                ))}
-                {pendingReminders.length === 0 && (
-                  <div style={{ padding: "2rem", textAlign: "center", color: "var(--text-light)" }}>
-                    <Check size={28} color="#10B981" style={{ marginBottom: "0.5rem" }} />
-                    <p style={{ margin: 0, fontSize: "0.9rem" }}>Awesome! All pending medicines logged for today.</p>
+                  );
+                })}
+
+                {reminders.length === 0 && (
+                  <div style={{ padding: "2rem", textAlign: "center", color: "#64748B" }}>
+                    <CheckCircle size={32} color="#10B981" style={{ marginBottom: "0.5rem" }} />
+                    <p style={{ margin: 0, fontSize: "0.92rem" }}>No active reminders remaining today.</p>
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Statistics & Reminder Preferences */}
+            {/* HEALTH INSIGHTS & PROGRESS CARDS */}
             <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-              {/* Adherence Card */}
-              <div className="card" style={{ flex: 1, borderRadius: "16px", boxShadow: "0 4px 20px rgba(0,0,0,0.03)" }}>
-                <h3 className="card-title">Medication Adherence</h3>
-                <div className="grid grid-cols-3" style={{ gap: "1rem", textAlign: "center", marginTop: "1rem" }}>
-                  <div style={{ background: "var(--bg-secondary)", padding: "1rem", borderRadius: "10px" }}>
-                    <span style={{ fontSize: "0.75rem", color: "var(--text-light)", display: "block" }}>Compliance Rate</span>
-                    <strong style={{ fontSize: "1.5rem", color: "#2563EB" }}>{historyStats?.adherence_rate || 0}%</strong>
+              {/* Dynamic Health Insights Card */}
+              <div className="card" style={{ 
+                padding: "1.75rem", 
+                borderRadius: "20px", 
+                boxShadow: "0 8px 30px rgba(0,0,0,0.03)",
+                background: "linear-gradient(135deg, rgba(37,99,235,0.05) 0%, rgba(16,185,129,0.05) 100%)",
+                border: "1px solid rgba(37,99,235,0.15)"
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", marginBottom: "1rem" }}>
+                  <Sparkles size={22} color="#2563EB" />
+                  <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 800, color: "#1E293B" }}>
+                    Smart Health Insights
+                  </h3>
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                  <div style={{ background: "#FFFFFF", padding: "1rem 1.25rem", borderRadius: "14px", border: "1px solid #E2E8F0" }}>
+                    <h4 style={{ margin: "0 0 0.25rem", fontSize: "0.92rem", color: "#1E293B", fontWeight: 700 }}>
+                      Adherence Progress: {stats.overallAdherence}%
+                    </h4>
+                    <p style={{ margin: 0, fontSize: "0.84rem", color: "#64748B", lineHeight: 1.4 }}>
+                      {stats.overallAdherence >= 80 
+                        ? "You maintain excellent adherence consistency! Keep following your schedule." 
+                        : "Try setting reminder alarms to improve your daily medication log rate."}
+                    </p>
                   </div>
-                  <div style={{ background: "var(--bg-secondary)", padding: "1rem", borderRadius: "10px" }}>
-                    <span style={{ fontSize: "0.75rem", color: "var(--text-light)", display: "block" }}>Doses Logged</span>
-                    <strong style={{ fontSize: "1.5rem", color: "#10B981" }}>{historyStats?.total_taken || 0}</strong>
-                  </div>
-                  <div style={{ background: "var(--bg-secondary)", padding: "1rem", borderRadius: "10px" }}>
-                    <span style={{ fontSize: "0.75rem", color: "var(--text-light)", display: "block" }}>Missed Doses</span>
-                    <strong style={{ fontSize: "1.5rem", color: "#EF4444" }}>{historyStats?.total_missed || 0}</strong>
+
+                  <div style={{ background: "#FFFFFF", padding: "1rem 1.25rem", borderRadius: "14px", border: "1px solid #E2E8F0" }}>
+                    <h4 style={{ margin: "0 0 0.25rem", fontSize: "0.92rem", color: "#1E293B", fontWeight: 700 }}>
+                      Inventory Alert
+                    </h4>
+                    <p style={{ margin: 0, fontSize: "0.84rem", color: "#64748B", lineHeight: 1.4 }}>
+                      {stats.lowStock > 0 
+                        ? `You have ${stats.lowStock} medicine(s) low on stock. Plan your refill soon.` 
+                        : "All medication stock levels are sufficient for upcoming doses."}
+                    </p>
                   </div>
                 </div>
               </div>
 
-              {/* Preference / Service settings card */}
-              <div className="card" style={{ borderRadius: "16px", boxShadow: "0 4px 20px rgba(0,0,0,0.03)" }}>
-                <h3 className="card-title">Reminder Status</h3>
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginTop: "1rem", fontSize: "0.85rem" }}>
+              {/* Account Profile Card */}
+              <div className="card" style={{ padding: "1.5rem", borderRadius: "20px", boxShadow: "0 8px 30px rgba(0,0,0,0.03)", background: "#FFFFFF" }}>
+                <h3 className="card-title" style={{ fontSize: "1rem", marginBottom: "1rem" }}>Profile Summary</h3>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem", fontSize: "0.88rem" }}>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span style={{ color: "var(--text-light)" }}>Twilio SMS Reminders:</span>
-                    <strong style={{ color: notifSettings?.sms_enabled ? "#10B981" : "var(--text-light)" }}>
-                      {notifSettings?.sms_enabled ? "Active" : "Disabled"}
-                    </strong>
+                    <span style={{ color: "#64748B" }}>Name:</span>
+                    <strong style={{ color: "#1E293B" }}>{profile.full_name || "—"}</strong>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span style={{ color: "var(--text-light)" }}>Email Reminders:</span>
-                    <strong style={{ color: notifSettings?.email_enabled ? "#10B981" : "var(--text-light)" }}>
-                      {notifSettings?.email_enabled ? "Active" : "Disabled"}
-                    </strong>
+                    <span style={{ color: "#64748B" }}>Blood Group:</span>
+                    <strong style={{ color: "#2563EB" }}>{profile.blood_group || "—"}</strong>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span style={{ color: "var(--text-light)" }}>Browser Push:</span>
-                    <strong style={{ color: notifSettings?.browser_notifications ? "#10B981" : "var(--text-light)" }}>
-                      {notifSettings?.browser_notifications ? "Active" : "Disabled"}
-                    </strong>
+                    <span style={{ color: "#64748B" }}>Emergency Contact:</span>
+                    <strong style={{ color: "#1E293B" }}>{profile.emergency_contact || "—"}</strong>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ color: "#64748B" }}>Assigned Caregiver:</span>
+                    <strong style={{ color: "#10B981" }}>{profile.caregiver_name || "None"}</strong>
                   </div>
                 </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Completed / Missed / Upcoming breakdown grids */}
-          <div className="grid grid-cols-3" style={{ gap: "1.5rem", marginBottom: "2.5rem" }}>
-            {/* Completed Medicines Card */}
-            <div className="card" style={{ borderRadius: "16px", boxShadow: "0 4px 20px rgba(0,0,0,0.03)" }}>
-              <h3 className="card-title" style={{ color: "#10B981" }}>Completed Today</h3>
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "1rem", fontSize: "0.85rem" }}>
-                {completedReminders.map(c => (
-                  <div key={c.id} style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid var(--border)", paddingBottom: "0.4rem" }}>
-                    <span>{c.name} ({c.dosage})</span>
-                    <span style={{ color: "var(--text-light)" }}>{c.scheduled_time}</span>
-                  </div>
-                ))}
-                {completedReminders.length === 0 && <span style={{ color: "var(--text-light)" }}>No completed doses logged yet.</span>}
-              </div>
-            </div>
-
-            {/* Missed Doses Card */}
-            <div className="card" style={{ borderRadius: "16px", boxShadow: "0 4px 20px rgba(0,0,0,0.03)" }}>
-              <h3 className="card-title" style={{ color: "#EF4444" }}>Missed Today</h3>
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "1rem", fontSize: "0.85rem" }}>
-                {missedReminders.map(m => (
-                  <div key={m.id} style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid var(--border)", paddingBottom: "0.4rem" }}>
-                    <span>{m.name} ({m.dosage})</span>
-                    <span style={{ color: "var(--text-light)" }}>{m.scheduled_time}</span>
-                  </div>
-                ))}
-                {missedReminders.length === 0 && <span style={{ color: "var(--text-light)" }}>No missed doses logged today.</span>}
-              </div>
-            </div>
-
-            {/* Upcoming Medicines */}
-            <div className="card" style={{ borderRadius: "16px", boxShadow: "0 4px 20px rgba(0,0,0,0.03)" }}>
-              <h3 className="card-title" style={{ color: "#2563EB" }}>Upcoming Medicines</h3>
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "1rem", fontSize: "0.85rem" }}>
-                {pendingReminders.map(p => (
-                  <div key={p.id} style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid var(--border)", paddingBottom: "0.4rem" }}>
-                    <span>{p.name} ({p.dosage})</span>
-                    <strong>{p.scheduled_time}</strong>
-                  </div>
-                ))}
-                {pendingReminders.length === 0 && <span style={{ color: "var(--text-light)" }}>No upcoming doses.</span>}
               </div>
             </div>
           </div>
 
           {/* ========================================================= */}
-          {/* PREMIUM HEALTHCARE SAAS MEDICINE MANAGEMENT MODULE         */}
+          {/* 5. PREMIUM HEALTHCARE SAAS MEDICINE MANAGEMENT MODULE      */}
           {/* ========================================================= */}
           
-          {/* HEADER SECTION */}
-          <div style={{ 
+          <div id="medication-table-section" className="page-section stagger-5" style={{ 
             display: "flex", 
             justify: "space-between", 
             alignItems: "center", 
             marginBottom: "1.5rem",
             flexWrap: "wrap",
-            gap: "1rem"
+            gap: "1rem",
+            paddingTop: "1rem"
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: "0.85rem" }}>
               <div style={{ 
@@ -714,11 +1019,11 @@ const PatientDashboard = ({ auth, setAuth }) => {
                 <Pill size={26} />
               </div>
               <div>
-                <h1 style={{ margin: 0, fontSize: "1.65rem", fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.02em" }}>
-                  Medicine Management
-                </h1>
-                <p style={{ margin: "0.2rem 0 0", fontSize: "0.9rem", color: "var(--text-light)" }}>
-                  Manage medicines, reminders and stock efficiently.
+                <h2 style={{ margin: 0, fontSize: "1.5rem", fontWeight: 800, color: "#1E293B", letterSpacing: "-0.02em" }}>
+                  Medicine Database Management
+                </h2>
+                <p style={{ margin: "0.2rem 0 0", fontSize: "0.88rem", color: "#64748B" }}>
+                  Manage medicines, schedules and inventory refills.
                 </p>
               </div>
             </div>
@@ -730,130 +1035,25 @@ const PatientDashboard = ({ auth, setAuth }) => {
                 display: "flex", 
                 alignItems: "center", 
                 gap: "0.5rem", 
-                padding: "0.7rem 1.4rem", 
+                padding: "0.65rem 1.3rem", 
                 borderRadius: "10px",
                 background: "linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)",
                 fontWeight: 600,
-                fontSize: "0.92rem",
-                boxShadow: "0 4px 14px rgba(37,99,235,0.3)",
-                transition: "all 0.2s ease"
+                fontSize: "0.9rem",
+                boxShadow: "0 4px 14px rgba(37,99,235,0.3)"
               }}
             >
               <Plus size={18} /> Add Medicine
             </button>
           </div>
 
-          {/* STATISTICS CARDS GRID */}
-          <div className="grid grid-cols-6" style={{ 
-            display: "grid", 
-            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", 
-            gap: "1.25rem", 
-            marginBottom: "2rem" 
-          }}>
-            {/* Card 1: Total Medicines */}
-            <div className="card" style={{ 
-              padding: "1.25rem", 
-              borderRadius: "14px", 
-              borderLeft: "4px solid #2563EB",
-              background: "linear-gradient(180deg, var(--bg-card) 0%, rgba(37,99,235,0.03) 100%)",
-              boxShadow: "0 4px 16px rgba(0,0,0,0.03)",
-              transition: "transform 0.2s ease",
-            }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
-                <span style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--text-light)", textTransform: "uppercase" }}>Total Medicines</span>
-                <Pill size={20} color="#2563EB" />
-              </div>
-              <div style={{ fontSize: "1.75rem", fontWeight: 800, color: "var(--text-primary)" }}>{stats.total}</div>
-              <div style={{ fontSize: "0.75rem", color: "var(--text-light)", marginTop: "0.25rem" }}>Registered prescriptions</div>
-            </div>
-
-            {/* Card 2: Active Medicines */}
-            <div className="card" style={{ 
-              padding: "1.25rem", 
-              borderRadius: "14px", 
-              borderLeft: "4px solid #06B6D4",
-              background: "linear-gradient(180deg, var(--bg-card) 0%, rgba(6,182,212,0.03) 100%)",
-              boxShadow: "0 4px 16px rgba(0,0,0,0.03)"
-            }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
-                <span style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--text-light)", textTransform: "uppercase" }}>Active Medicines</span>
-                <Activity size={20} color="#06B6D4" />
-              </div>
-              <div style={{ fontSize: "1.75rem", fontWeight: 800, color: "#06B6D4" }}>{stats.active}</div>
-              <div style={{ fontSize: "0.75rem", color: "var(--text-light)", marginTop: "0.25rem" }}>Ongoing treatments</div>
-            </div>
-
-            {/* Card 3: Low Stock */}
-            <div className="card" style={{ 
-              padding: "1.25rem", 
-              borderRadius: "14px", 
-              borderLeft: "4px solid #EF4444",
-              background: "linear-gradient(180deg, var(--bg-card) 0%, rgba(239,68,68,0.03) 100%)",
-              boxShadow: "0 4px 16px rgba(0,0,0,0.03)"
-            }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
-                <span style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--text-light)", textTransform: "uppercase" }}>Low Stock</span>
-                <AlertTriangle size={20} color="#EF4444" />
-              </div>
-              <div style={{ fontSize: "1.75rem", fontWeight: 800, color: "#EF4444" }}>{stats.lowStock}</div>
-              <div style={{ fontSize: "0.75rem", color: "var(--text-light)", marginTop: "0.25rem" }}>Refill required (≤ 5)</div>
-            </div>
-
-            {/* Card 4: Expiring Soon */}
-            <div className="card" style={{ 
-              padding: "1.25rem", 
-              borderRadius: "14px", 
-              borderLeft: "4px solid #F59E0B",
-              background: "linear-gradient(180deg, var(--bg-card) 0%, rgba(245,158,11,0.03) 100%)",
-              boxShadow: "0 4px 16px rgba(0,0,0,0.03)"
-            }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
-                <span style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--text-light)", textTransform: "uppercase" }}>Expiring Soon</span>
-                <Clock size={20} color="#F59E0B" />
-              </div>
-              <div style={{ fontSize: "1.75rem", fontWeight: 800, color: "#F59E0B" }}>{stats.expiringSoon}</div>
-              <div style={{ fontSize: "0.75rem", color: "var(--text-light)", marginTop: "0.25rem" }}>Ending within 7 days</div>
-            </div>
-
-            {/* Card 5: Today's Scheduled Doses */}
-            <div className="card" style={{ 
-              padding: "1.25rem", 
-              borderRadius: "14px", 
-              borderLeft: "4px solid #10B981",
-              background: "linear-gradient(180deg, var(--bg-card) 0%, rgba(16,185,129,0.03) 100%)",
-              boxShadow: "0 4px 16px rgba(0,0,0,0.03)"
-            }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
-                <span style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--text-light)", textTransform: "uppercase" }}>Today's Doses</span>
-                <Calendar size={20} color="#10B981" />
-              </div>
-              <div style={{ fontSize: "1.75rem", fontWeight: 800, color: "#10B981" }}>{stats.todayDoses}</div>
-              <div style={{ fontSize: "0.75rem", color: "var(--text-light)", marginTop: "0.25rem" }}>Scheduled today</div>
-            </div>
-
-            {/* Card 6: Completed Courses */}
-            <div className="card" style={{ 
-              padding: "1.25rem", 
-              borderRadius: "14px", 
-              borderLeft: "4px solid #6366F1",
-              background: "linear-gradient(180deg, var(--bg-card) 0%, rgba(99,102,241,0.03) 100%)",
-              boxShadow: "0 4px 16px rgba(0,0,0,0.03)"
-            }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
-                <span style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--text-light)", textTransform: "uppercase" }}>Completed</span>
-                <Award size={20} color="#6366F1" />
-              </div>
-              <div style={{ fontSize: "1.75rem", fontWeight: 800, color: "#6366F1" }}>{stats.completedCourses}</div>
-              <div style={{ fontSize: "0.75rem", color: "var(--text-light)", marginTop: "0.25rem" }}>Finished courses</div>
-            </div>
-          </div>
-
           {/* SEARCH & FILTER TOOLBAR & TABLE CONTAINER CARD */}
           <div className="card" style={{ 
             padding: "1.75rem", 
-            borderRadius: "18px", 
-            boxShadow: "0 8px 30px rgba(0,0,0,0.04)",
-            border: "1px solid var(--border)"
+            borderRadius: "20px", 
+            boxShadow: "0 8px 30px rgba(0,0,0,0.03)",
+            border: "1px solid #E2E8F0",
+            background: "#FFFFFF"
           }}>
             {/* Toolbar */}
             <div style={{ 
@@ -864,48 +1064,47 @@ const PatientDashboard = ({ auth, setAuth }) => {
               justify: "space-between",
               marginBottom: "1.5rem",
               paddingBottom: "1.25rem",
-              borderBottom: "1px solid var(--border)"
+              borderBottom: "1px solid #E2E8F0"
             }}>
               {/* Search Bar */}
               <div style={{ 
                 display: "flex", 
                 alignItems: "center", 
                 gap: "0.6rem", 
-                background: "var(--bg-secondary)", 
+                background: "#F8FAFC", 
                 padding: "0.55rem 1rem", 
                 borderRadius: "10px", 
-                border: "1px solid var(--border)",
+                border: "1px solid #E2E8F0",
                 minWidth: "260px",
                 flex: 1
               }}>
-                <Search size={18} color="var(--text-light)" />
+                <Search size={18} color="#64748B" />
                 <input
                   type="text"
                   placeholder="Search by medicine name or dosage..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  style={{ border: "none", background: "transparent", width: "100%", outline: "none", fontSize: "0.9rem", color: "var(--text-primary)" }}
+                  style={{ border: "none", background: "transparent", width: "100%", outline: "none", fontSize: "0.9rem", color: "#1E293B" }}
                 />
                 {searchTerm && (
-                  <X size={16} color="var(--text-light)" style={{ cursor: "pointer" }} onClick={() => setSearchTerm("")} />
+                  <X size={16} color="#64748B" style={{ cursor: "pointer" }} onClick={() => setSearchTerm("")} />
                 )}
               </div>
 
               {/* Filters & Sorting Controls */}
               <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
-                {/* Status Filter */}
                 <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                  <Filter size={15} color="var(--text-light)" />
+                  <Filter size={15} color="#64748B" />
                   <select 
                     value={statusFilter} 
                     onChange={(e) => setStatusFilter(e.target.value)}
                     style={{ 
                       padding: "0.5rem 0.8rem", 
                       borderRadius: "8px", 
-                      border: "1px solid var(--border)", 
-                      background: "var(--bg-secondary)", 
+                      border: "1px solid #E2E8F0", 
+                      background: "#F8FAFC", 
                       fontSize: "0.85rem",
-                      color: "var(--text-primary)",
+                      color: "#1E293B",
                       cursor: "pointer",
                       outline: "none"
                     }}
@@ -917,17 +1116,16 @@ const PatientDashboard = ({ auth, setAuth }) => {
                   </select>
                 </div>
 
-                {/* Stock Filter */}
                 <select 
                   value={stockFilter} 
                   onChange={(e) => setStockFilter(e.target.value)}
                   style={{ 
                     padding: "0.5rem 0.8rem", 
                     borderRadius: "8px", 
-                    border: "1px solid var(--border)", 
-                    background: "var(--bg-secondary)", 
+                    border: "1px solid #E2E8F0", 
+                    background: "#F8FAFC", 
                     fontSize: "0.85rem",
-                    color: "var(--text-primary)",
+                    color: "#1E293B",
                     cursor: "pointer",
                     outline: "none"
                   }}
@@ -937,19 +1135,18 @@ const PatientDashboard = ({ auth, setAuth }) => {
                   <option value="sufficient">Sufficient Stock (&gt; 5)</option>
                 </select>
 
-                {/* Sorting */}
                 <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                  <ArrowUpDown size={15} color="var(--text-light)" />
+                  <ArrowUpDown size={15} color="#64748B" />
                   <select 
                     value={sortBy} 
                     onChange={(e) => setSortBy(e.target.value)}
                     style={{ 
                       padding: "0.5rem 0.8rem", 
                       borderRadius: "8px", 
-                      border: "1px solid var(--border)", 
-                      background: "var(--bg-secondary)", 
+                      border: "1px solid #E2E8F0", 
+                      background: "#F8FAFC", 
                       fontSize: "0.85rem",
-                      color: "var(--text-primary)",
+                      color: "#1E293B",
                       cursor: "pointer",
                       outline: "none"
                     }}
@@ -966,7 +1163,7 @@ const PatientDashboard = ({ auth, setAuth }) => {
             <div className="table-container" style={{ overflowX: "auto" }}>
               <table className="table" style={{ width: "100%", borderCollapse: "separate", borderSpacing: "0 0.5rem" }}>
                 <thead>
-                  <tr style={{ background: "var(--bg-secondary)", color: "var(--text-light)", fontSize: "0.82rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  <tr style={{ background: "#F8FAFC", color: "#64748B", fontSize: "0.82rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                     <th style={{ padding: "0.9rem 1rem", borderTopLeftRadius: "10px", borderBottomLeftRadius: "10px" }}>Medicine</th>
                     <th style={{ padding: "0.9rem 1rem" }}>Dosage</th>
                     <th style={{ padding: "0.9rem 1rem" }}>Remaining Stock</th>
@@ -988,7 +1185,7 @@ const PatientDashboard = ({ auth, setAuth }) => {
                       <tr 
                         key={med.id} 
                         style={{ 
-                          background: "var(--bg-card)", 
+                          background: "#FFFFFF", 
                           boxShadow: "0 2px 8px rgba(0,0,0,0.02)",
                           transition: "all 0.2s ease"
                         }}
@@ -1009,9 +1206,9 @@ const PatientDashboard = ({ auth, setAuth }) => {
                               <Pill size={18} />
                             </div>
                             <div>
-                              <strong style={{ color: "var(--text-primary)", fontSize: "0.95rem", display: "block" }}>{med.name}</strong>
+                              <strong style={{ color: "#1E293B", fontSize: "0.95rem", display: "block" }}>{med.name}</strong>
                               {med.notes && (
-                                <span style={{ fontSize: "0.78rem", color: "var(--text-light)", display: "block", marginTop: "0.15rem" }}>
+                                <span style={{ fontSize: "0.78rem", color: "#64748B", display: "block", marginTop: "0.15rem" }}>
                                   {med.notes.length > 35 ? `${med.notes.substring(0, 35)}...` : med.notes}
                                 </span>
                               )}
@@ -1019,7 +1216,7 @@ const PatientDashboard = ({ auth, setAuth }) => {
                           </div>
                         </td>
 
-                        <td style={{ padding: "1rem", fontSize: "0.9rem", color: "var(--text-primary)", fontWeight: 500 }}>
+                        <td style={{ padding: "1rem", fontSize: "0.9rem", color: "#1E293B", fontWeight: 500 }}>
                           {med.dosage}
                         </td>
 
@@ -1059,19 +1256,19 @@ const PatientDashboard = ({ auth, setAuth }) => {
                           </div>
                         </td>
 
-                        <td style={{ padding: "1rem", fontSize: "0.85rem", color: "var(--text-primary)" }}>
+                        <td style={{ padding: "1rem", fontSize: "0.85rem", color: "#1E293B" }}>
                           <span style={{ 
                             padding: "0.25rem 0.65rem", 
                             borderRadius: "6px", 
-                            background: "var(--bg-secondary)", 
+                            background: "#F8FAFC", 
                             fontSize: "0.8rem",
-                            border: "1px solid var(--border)"
+                            border: "1px solid #E2E8F0"
                           }}>
                             {med.food_relation}
                           </span>
                         </td>
 
-                        <td style={{ padding: "1rem", fontSize: "0.8rem", color: "var(--text-light)" }}>
+                        <td style={{ padding: "1rem", fontSize: "0.8rem", color: "#64748B" }}>
                           <div>{med.start_date}</div>
                           <div style={{ fontSize: "0.75rem", opacity: 0.8 }}>to {med.end_date}</div>
                         </td>
@@ -1092,10 +1289,8 @@ const PatientDashboard = ({ auth, setAuth }) => {
                           )}
                         </td>
 
-                        {/* ACTIONS COLUMN WITH EDIT AND DELETE BUTTONS */}
                         <td style={{ padding: "1rem", textAlign: "right", borderTopRightRadius: "10px", borderBottomRightRadius: "10px" }}>
                           <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end", alignItems: "center" }}>
-                            {/* EDIT BUTTON */}
                             <button 
                               onClick={() => openEditModal(med)} 
                               className="btn"
@@ -1117,7 +1312,6 @@ const PatientDashboard = ({ auth, setAuth }) => {
                               <Edit size={14} /> Edit
                             </button>
 
-                            {/* DELETE BUTTON (RED OUTLINE BUTTON WITH TRASH ICON & HOVER EFFECT) */}
                             <button 
                               onClick={() => openDeleteConfirmation(med)} 
                               className="btn"
@@ -1156,10 +1350,9 @@ const PatientDashboard = ({ auth, setAuth }) => {
 
                   {filteredMedicines.length === 0 && (
                     <tr>
-                      <td colSpan="8" style={{ textAlign: "center", padding: "3rem 2rem", color: "var(--text-light)" }}>
-                        <Pill size={36} style={{ margin: "0 auto 0.75rem", opacity: 0.4, color: "var(--text-light)" }} />
+                      <td colSpan="8" style={{ textAlign: "center", padding: "3rem 2rem", color: "#64748B" }}>
+                        <Pill size={36} style={{ margin: "0 auto 0.75rem", opacity: 0.4 }} />
                         <p style={{ margin: 0, fontSize: "1rem", fontWeight: 600 }}>No medications found matching your criteria.</p>
-                        <span style={{ fontSize: "0.85rem" }}>Try adjusting your search terms or filters.</span>
                       </td>
                     </tr>
                   )}
@@ -1170,9 +1363,7 @@ const PatientDashboard = ({ auth, setAuth }) => {
         </main>
       </div>
 
-      {/* ========================================================= */}
-      {/* DELETE CONFIRMATION DIALOG MODAL                          */}
-      {/* ========================================================= */}
+      {/* DELETE CONFIRMATION DIALOG MODAL */}
       {showDeleteModal && (
         <div className="modal-backdrop flex-center" style={{ 
           position: "fixed", 
@@ -1189,7 +1380,7 @@ const PatientDashboard = ({ auth, setAuth }) => {
             padding: "2rem", 
             borderRadius: "20px", 
             boxShadow: "0 20px 40px rgba(0,0,0,0.2)",
-            border: "1px solid var(--border)",
+            border: "1px solid #E2E8F0",
             textAlign: "center"
           }}>
             <div style={{ 
@@ -1206,23 +1397,23 @@ const PatientDashboard = ({ auth, setAuth }) => {
               <Trash2 size={28} />
             </div>
 
-            <h3 style={{ margin: "0 0 0.5rem", fontSize: "1.35rem", fontWeight: 800, color: "var(--text-primary)" }}>
+            <h3 style={{ margin: "0 0 0.5rem", fontSize: "1.35rem", fontWeight: 800, color: "#1E293B" }}>
               Delete Medicine
             </h3>
 
-            <p style={{ margin: "0 0 1.75rem", fontSize: "0.92rem", color: "var(--text-light)", lineHeight: 1.5 }}>
+            <p style={{ margin: "0 0 1.75rem", fontSize: "0.92rem", color: "#64748B", lineHeight: 1.5 }}>
               Are you sure you want to permanently delete this medicine?
             </p>
 
             {deletingMed && (
               <div style={{ 
-                background: "var(--bg-secondary)", 
+                background: "#F8FAFC", 
                 padding: "0.75rem 1rem", 
                 borderRadius: "10px", 
                 marginBottom: "1.5rem",
                 fontSize: "0.88rem",
-                color: "var(--text-primary)",
-                border: "1px solid var(--border)"
+                color: "#1E293B",
+                border: "1px solid #E2E8F0"
               }}>
                 <strong>{deletingMed.name}</strong> ({deletingMed.dosage})
               </div>
@@ -1298,7 +1489,7 @@ const PatientDashboard = ({ auth, setAuth }) => {
           <div className="card modal-content" style={{ width: "520px", padding: "2rem", maxHeight: "90vh", overflowY: "auto", borderRadius: "20px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem" }}>
               <h3 className="card-title" style={{ margin: 0, fontSize: "1.25rem", fontWeight: 800 }}>Add New Medicine</h3>
-              <X size={20} style={{ cursor: "pointer", color: "var(--text-light)" }} onClick={() => setShowAddModal(false)} />
+              <X size={20} style={{ cursor: "pointer", color: "#64748B" }} onClick={() => setShowAddModal(false)} />
             </div>
 
             <form onSubmit={handleAddMedicine}>
@@ -1337,7 +1528,7 @@ const PatientDashboard = ({ auth, setAuth }) => {
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "0.25rem" }}>
                   {medReminderTimes.map((t, index) => (
                     <div key={index} style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-                      <span style={{ fontSize: "0.85rem", color: "var(--text-light)", width: "60px" }}>Time {index + 1}:</span>
+                      <span style={{ fontSize: "0.85rem", color: "#64748B", width: "60px" }}>Time {index + 1}:</span>
                       <input
                         type="time"
                         className="form-input"
@@ -1418,7 +1609,7 @@ const PatientDashboard = ({ auth, setAuth }) => {
           <div className="card modal-content" style={{ width: "520px", padding: "2rem", maxHeight: "90vh", overflowY: "auto", borderRadius: "20px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem" }}>
               <h3 className="card-title" style={{ margin: 0, fontSize: "1.25rem", fontWeight: 800 }}>Edit Medicine Details</h3>
-              <X size={20} style={{ cursor: "pointer", color: "var(--text-light)" }} onClick={() => setShowEditModal(false)} />
+              <X size={20} style={{ cursor: "pointer", color: "#64748B" }} onClick={() => setShowEditModal(false)} />
             </div>
 
             <form onSubmit={handleUpdateMedicine}>
@@ -1457,7 +1648,7 @@ const PatientDashboard = ({ auth, setAuth }) => {
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "0.25rem" }}>
                   {medReminderTimes.map((t, index) => (
                     <div key={index} style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-                      <span style={{ fontSize: "0.85rem", color: "var(--text-light)", width: "60px" }}>Time {index + 1}:</span>
+                      <span style={{ fontSize: "0.85rem", color: "#64748B", width: "60px" }}>Time {index + 1}:</span>
                       <input
                         type="time"
                         className="form-input"

@@ -87,8 +87,14 @@ const AdminDashboard = ({ auth }) => {
     return (
       <div className="app-container">
         <Sidebar role={auth.role} email={auth.email} />
-        <div className="main-content flex-center">
-          <div className="spinner" />
+        <div className="main-content" style={{ flex: 1, display: "flex", flexDirection: "column", height: "100vh", overflowY: "auto" }}>
+          <Navbar pageTitle="Administration Dashboard" />
+          <div style={{ padding: "2rem" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "1.25rem", marginBottom: "2rem" }}>
+              {[...Array(6)].map((_, i) => <div key={i} className="skeleton" style={{ height: "100px", borderRadius: "14px" }} />)}
+            </div>
+            <div className="skeleton" style={{ height: "400px", borderRadius: "20px" }} />
+          </div>
         </div>
       </div>
     );
@@ -104,7 +110,7 @@ const AdminDashboard = ({ auth }) => {
           {errorMsg && <div className="alert alert-danger">{errorMsg}</div>}
 
           {/* Stats Grid - 6 Cards */}
-          <div className="grid grid-cols-3 stats-row" style={{ marginBottom: "2rem" }}>
+          <div className="page-section stagger-1 grid grid-cols-3 stats-row" style={{ marginBottom: "2rem" }}>
             
             {/* Card 1: Total Registered Users */}
             <div className="card stat-card stat-card-border-blue">
