@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Plus, Bell, Pill, Check, LogOut, ShieldAlert, Award, Calendar, RefreshCw, X, Edit, Trash, Activity } from "lucide-react";
+import { Plus, Bell, Pill, Check, LogOut, ShieldAlert, Award, Calendar, RefreshCw, X, Edit, Trash, Activity, Users } from "lucide-react";
 import { authService, medicineService } from "../services/api";
 
 const PatientDashboard = ({ user, setAuth }) => {
