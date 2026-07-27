@@ -171,5 +171,37 @@ export const medicineService = {
   },
 };
 
+export const caregiverService = {
+  getAssignedPatients: async () => {
+    const response = await api.get("/caregivers/patients");
+    return response.data;
+  },
+
+  getPatientsHistory: async () => {
+    const response = await api.get("/caregivers/patients/history");
+    return response.data;
+  },
+
+  getDashboardSummary: async () => {
+    const response = await api.get("/caregivers/dashboard/summary");
+    return response.data;
+  },
+
+  getDetailedPatientHistory: async (patientId) => {
+    const response = await api.get(`/caregiver/patient/${patientId}/history`);
+    return response.data;
+  },
+
+  updateCaregiverProfile: async (profileData) => {
+    const response = await api.put("/caregiver/profile", profileData);
+    return response.data;
+  },
+
+  patchCaregiverProfile: async (profileData) => {
+    const response = await api.patch("/caregiver/profile", profileData);
+    return response.data;
+  },
+};
+
 export default api;
 

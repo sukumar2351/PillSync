@@ -92,6 +92,9 @@ class CaregiverProfileResponse(BaseModel):
     gender: Optional[str] = None
     address: Optional[str] = None
     account_status: str
+    emergency_contact: Optional[str] = None
+    emergency_phone: Optional[str] = None
+    profile_photo: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -147,10 +150,14 @@ class PatientProfileUpdate(BaseModel):
 
 class CaregiverProfileUpdate(BaseModel):
     full_name: str = Field(..., min_length=2, max_length=100)
+    email: Optional[EmailStr] = None
     phone: Optional[str] = None
     age: Optional[int] = None
     gender: Optional[str] = None
     address: Optional[str] = None
+    emergency_contact: Optional[str] = None
+    emergency_phone: Optional[str] = None
+    profile_photo: Optional[str] = None
 
     @field_validator("phone")
     @classmethod

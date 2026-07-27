@@ -48,8 +48,10 @@ class PatientProfile(Base):
     notification_preference = Column(String(50), default="browser")
     reminder_status = Column(String(50), nullable=True)
     delivery_status = Column(String(50), nullable=True)
+    caregiver_id = Column(Integer, ForeignKey("caregiver_profiles.id", ondelete="SET NULL"), nullable=True)
 
     user = relationship("User", back_populates="patient_profile")
+    caregiver = relationship("CaregiverProfile", back_populates="assigned_patients")
 
 
 class CaregiverProfile(Base):
@@ -63,8 +65,12 @@ class CaregiverProfile(Base):
     gender = Column(String(20), nullable=True)
     address = Column(Text, nullable=True)
     account_status = Column(String(20), default="Active")
+    emergency_contact = Column(String(100), nullable=True)
+    emergency_phone = Column(String(20), nullable=True)
+    profile_photo = Column(Text, nullable=True)
 
     user = relationship("User", back_populates="caregiver_profile")
+    assigned_patients = relationship("PatientProfile", back_populates="caregiver")
 
 
 class Medicine(Base):

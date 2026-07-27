@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence, useSpring, useTransform } from "framer-motion";
-import { authService, userService } from "../services/api";
+import { authService, userService, caregiverService } from "../services/api";
 import Sidebar from "../components/Sidebar";
 import Navbar from "../components/Navbar";
 
@@ -76,6 +76,8 @@ const Profile = ({ auth }) => {
   const [bloodGroup, setBloodGroup] = useState("");
   const [address, setAddress] = useState("");
   const [emergencyContact, setEmergencyContact] = useState("");
+  const [emergencyPhone, setEmergencyPhone] = useState("");
+  const [profilePhoto, setProfilePhoto] = useState("");
 
   // Loading & notification states
   const [isLoading, setIsLoading] = useState(true);
@@ -138,6 +140,8 @@ const Profile = ({ auth }) => {
         setBloodGroup(profile.blood_group || "");
         setAddress(profile.address || "");
         setEmergencyContact(profile.emergency_contact || "");
+        setEmergencyPhone(profile.emergency_phone || "");
+        setProfilePhoto(profile.profile_photo || "");
       } catch (err) {
         setErrorMsg("Failed to load user profile details.");
       } finally {
@@ -175,9 +179,24 @@ const Profile = ({ auth }) => {
       }
     }
 
-    if (auth.role === "patient" && emergencyContact) {
+    if (auth.role === "caregiver") {
+      if (!userEmail.trim()) {
+        tempErrors.email = "Email is required";
+      } else if (!/\S+@\S+\.\S+/.test(userEmail)) {
+        tempErrors.email = "Please enter a valid email address";
+      }
+    }
+
+    if (emergencyContact) {
       if (emergencyContact.trim().length < 2) {
         tempErrors.emergencyContact = "Emergency contact detail must be at least 2 characters";
+      }
+    }
+
+    if (emergencyPhone) {
+      const cleanEmerPhone = emergencyPhone.replace(/[\s\-\(\)\+]/g, "");
+      if (!/^\d+$/.test(cleanEmerPhone) || cleanEmerPhone.length < 10 || cleanEmerPhone.length > 15) {
+        tempErrors.emergencyPhone = "Emergency phone must contain between 10 and 15 digits";
       }
     }
 
@@ -205,9 +224,16 @@ const Profile = ({ auth }) => {
       if (auth.role === "patient") {
         updatePayload.blood_group = bloodGroup.toUpperCase() || null;
         updatePayload.emergency_contact = emergencyContact || null;
+        await userService.updateProfile(updatePayload);
+      } else if (auth.role === "caregiver") {
+        updatePayload.email = userEmail;
+        updatePayload.emergency_contact = emergencyContact || null;
+        updatePayload.emergency_phone = emergencyPhone || null;
+        updatePayload.profile_photo = profilePhoto || null;
+        await caregiverService.updateCaregiverProfile(updatePayload);
+        localStorage.setItem("email", userEmail);
       }
 
-      await userService.updateProfile(updatePayload);
       setSuccessMsg("Profile saved successfully!");
       
       // Update local profile representation
@@ -380,23 +406,25 @@ const Profile = ({ auth }) => {
                     {errors.fullName && <div className="form-error-msg">{errors.fullName}</div>}
                   </AnimatedFormGroup>
 
-                  {/* Email (Read Only) */}
-                  <AnimatedFormGroup delay={0.16}>
-                    <label className="form-label" htmlFor="email-readonly">
-                      Email Address (Primary)
+                  {/* Email */}
+                  <AnimatedFormGroup delay={0.16} error={errors.email}>
+                    <label className="form-label" htmlFor="email-input">
+                      Email Address (Primary) <span style={{ color: "var(--error-color)" }}>*</span>
                     </label>
                     <input
-                      id="email-readonly"
-                      type="text"
-                      className="form-input profile-input-element"
+                      id="email-input"
+                      type="email"
+                      className={`form-input profile-input-element ${errors.email ? "is-invalid" : ""}`}
                       value={userEmail}
-                      disabled={true}
-                      style={{
+                      onChange={(e) => setUserEmail(e.target.value)}
+                      disabled={isSaving || auth.role !== "caregiver"}
+                      style={auth.role !== "caregiver" ? {
                         backgroundColor: "var(--bg-secondary)",
                         cursor: "not-allowed",
                         opacity: 0.7
-                      }}
+                      } : {}}
                     />
+                    {errors.email && <div className="form-error-msg">{errors.email}</div>}
                   </AnimatedFormGroup>
 
                   {/* Phone */}
@@ -487,6 +515,62 @@ const Profile = ({ auth }) => {
                         disabled={isSaving}
                       />
                       {errors.emergencyContact && <div className="form-error-msg">{errors.emergencyContact}</div>}
+                    </AnimatedFormGroup>
+                  )}
+
+                  {/* Caregiver specific: Emergency Contact */}
+                  {auth.role === "caregiver" && (
+                    <AnimatedFormGroup delay={0.48} error={errors.emergencyContact}>
+                      <label className="form-label" htmlFor="emergency-input">
+                        Emergency Contact
+                      </label>
+                      <input
+                        id="emergency-input"
+                        type="text"
+                        className={`form-input profile-input-element ${errors.emergencyContact ? "is-invalid" : ""}`}
+                        placeholder="e.g. Spouse Name"
+                        value={emergencyContact}
+                        onChange={(e) => setEmergencyContact(e.target.value)}
+                        disabled={isSaving}
+                      />
+                      {errors.emergencyContact && <div className="form-error-msg">{errors.emergencyContact}</div>}
+                    </AnimatedFormGroup>
+                  )}
+
+                  {/* Caregiver specific: Emergency Phone */}
+                  {auth.role === "caregiver" && (
+                    <AnimatedFormGroup delay={0.52} error={errors.emergencyPhone}>
+                      <label className="form-label" htmlFor="emergency-phone-input">
+                        Emergency Phone Number
+                      </label>
+                      <input
+                        id="emergency-phone-input"
+                        type="text"
+                        className={`form-input profile-input-element ${errors.emergencyPhone ? "is-invalid" : ""}`}
+                        placeholder="e.g. +91 98765 43210"
+                        value={emergencyPhone}
+                        onChange={(e) => setEmergencyPhone(e.target.value)}
+                        disabled={isSaving}
+                      />
+                      {errors.emergencyPhone && <div className="form-error-msg">{errors.emergencyPhone}</div>}
+                    </AnimatedFormGroup>
+                  )}
+
+                  {/* Caregiver specific: Profile Photo URL */}
+                  {auth.role === "caregiver" && (
+                    <AnimatedFormGroup delay={0.56}>
+                      <label className="form-label" htmlFor="photo-input">
+                        Profile Photo URL
+                      </label>
+                      <input
+                        id="photo-input"
+                        type="text"
+                        className="form-input profile-input-element"
+                        placeholder="e.g. https://example.com/avatar.jpg"
+                        value={profilePhoto}
+                        onChange={(e) => setProfilePhoto(e.target.value)}
+                        disabled={isSaving}
+                      />
                     </AnimatedFormGroup>
                   )}
                 </div>

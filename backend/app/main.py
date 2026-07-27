@@ -202,6 +202,12 @@ def seed_sample_data(db):
         db.add(user)
         db.flush()
 
+        # Resolve caregiver_id dynamically
+        cg_id = None
+        cg_user = db.query(User).join(CaregiverProfile).filter(CaregiverProfile.full_name == caregiver_name).first()
+        if cg_user and cg_user.caregiver_profile:
+            cg_id = cg_user.caregiver_profile.id
+
         profile = PatientProfile(
             user_id=user.id,
             full_name=name,
@@ -210,7 +216,8 @@ def seed_sample_data(db):
             gender=gender,
             blood_group=blood,
             address=f"Plot {idx+20}, Sector {idx%4 + 1}, Jubilee Hills, Hyderabad, Telangana",
-            emergency_contact=f"{caregiver_name} (Caregiver: +91 98765 43200)"
+            emergency_contact=f"{caregiver_name} (Caregiver: +91 98765 43200)",
+            caregiver_id=cg_id
         )
         db.add(profile)
 
@@ -252,6 +259,13 @@ async def lifespan(app: FastAPI):
         db.execute(text("ALTER TABLE notification_settings ADD COLUMN IF NOT EXISTS email_recipient VARCHAR(255);"))
         db.execute(text("ALTER TABLE notification_settings ADD COLUMN IF NOT EXISTS use_primary_email BOOLEAN DEFAULT TRUE;"))
         db.execute(text("ALTER TABLE notification_settings ADD COLUMN IF NOT EXISTS reminder_email VARCHAR(255);"))
+        
+        # Caregiver modifications
+        db.execute(text("ALTER TABLE caregiver_profiles ADD COLUMN IF NOT EXISTS emergency_contact VARCHAR(100);"))
+        db.execute(text("ALTER TABLE caregiver_profiles ADD COLUMN IF NOT EXISTS emergency_phone VARCHAR(20);"))
+        db.execute(text("ALTER TABLE caregiver_profiles ADD COLUMN IF NOT EXISTS profile_photo TEXT;"))
+        db.execute(text("ALTER TABLE patient_profiles ADD COLUMN IF NOT EXISTS caregiver_id INTEGER REFERENCES caregiver_profiles(id) ON DELETE SET NULL;"))
+        
         db.commit()
         app_logger.info("Schema migrations applied successfully.")
     except Exception as migration_err:
@@ -406,11 +420,15 @@ async def global_exception_handler(request: Request, exc: Exception):
 # ============================================================
 # ROUTERS
 # ============================================================
+from app.routers.caregiver import router as caregiver_router, singular_router as caregiver_singular_router
+
 app.include_router(auth_router, prefix="/api")
 app.include_router(users_router, prefix="/api")
 app.include_router(admin_router, prefix="/api")
 app.include_router(medicines_router, prefix="/api")
 app.include_router(notifications_router, prefix="/api")
+app.include_router(caregiver_router, prefix="/api")
+app.include_router(caregiver_singular_router, prefix="/api")
 
 
 

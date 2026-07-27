@@ -78,7 +78,10 @@ def get_current_user_details(current_user: User = Depends(get_current_user), db:
                 "age": profile.age,
                 "gender": profile.gender,
                 "address": profile.address,
-                "account_status": profile.account_status
+                "account_status": profile.account_status,
+                "emergency_contact": profile.emergency_contact,
+                "emergency_phone": profile.emergency_phone,
+                "profile_photo": profile.profile_photo
             }
             
     return {

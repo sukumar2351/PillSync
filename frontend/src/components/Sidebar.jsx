@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   LayoutDashboard, User, Bell, LogOut, Activity, Users,
-  Pill, Shield, Settings, ChevronRight,
+  Pill, Shield, Settings, ChevronRight, Clock,
 } from "lucide-react";
 import { authService } from "../services/api";
 
@@ -24,6 +24,7 @@ const getLinks = (role) => {
       return [
         { path: "/caregiver-dashboard", label: "Dashboard",  icon: <LayoutDashboard size={18} /> },
         { path: "/profile",             label: "My Profile", icon: <User size={18} /> },
+        { path: "/assigned-history",    label: "Assigned Patient History", icon: <Clock size={18} /> },
       ];
     default:
       return [];
