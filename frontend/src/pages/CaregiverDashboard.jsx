@@ -59,7 +59,10 @@ const CaregiverDashboard = ({ auth }) => {
       setPatientDetail(data);
     } catch (err) {
       console.error("Failed to load detailed patient history:", err);
-      setDetailError("Failed to load clinical compliance details.");
+      const errMsg = err.response && err.response.data && err.response.data.detail
+        ? err.response.data.detail
+        : "Failed to load clinical compliance details: connection failed.";
+      setDetailError(errMsg);
     } finally {
       setLoadingDetail(false);
     }
