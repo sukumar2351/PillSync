@@ -156,10 +156,10 @@ const Navbar = ({ pageTitle }) => {
       transition={{ duration: 0.6, ease: "easeOut" }}
       style={{
         height: 70,
-        background: "rgba(var(--bg-primary-rgb, 10,14,26), 0.82)",
-        backdropFilter: "blur(18px)",
-        WebkitBackdropFilter: "blur(18px)",
-        borderBottom: "1px solid var(--border)",
+        background: "rgba(15, 23, 42, 0.85)", // Primary: #0F172A with glass transparency
+        backdropFilter: "blur(20px)",
+        WebkitBackdropFilter: "blur(20px)",
+        borderBottom: "1px solid rgba(255, 255, 255, 0.08)", // subtle elegant border
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
@@ -167,7 +167,8 @@ const Navbar = ({ pageTitle }) => {
         position: "sticky",
         top: 0,
         zIndex: 299,
-        boxShadow: "0 4px 30px rgba(0,0,0,0.03)"
+        boxShadow: "0 10px 30px -10px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)", // Apple/Stripe-like depth
+        borderRadius: "0 0 16px 16px" // modern rounded bottom corners
       }}
     >
       {/* LEFT SIDE: Logo & Breadcrumbs */}
@@ -175,75 +176,38 @@ const Navbar = ({ pageTitle }) => {
         <Link to="/" style={{ display: "flex", alignItems: "center", gap: "0.5rem", textDecoration: "none" }}>
           <div style={{
             width: 32, height: 32, borderRadius: 8,
-            background: "linear-gradient(135deg, #2563EB, #06B6D4)",
+            background: "linear-gradient(135deg, #2563EB, #06B6D4)", // Accent & Highlights
             display: "flex", alignItems: "center", justifyContent: "center",
-            boxShadow: "0 4px 10px rgba(37,99,235,0.3)"
+            boxShadow: "0 4px 12px rgba(37, 99, 235, 0.35)"
           }}>
             <Activity size={16} color="white" />
           </div>
         </Link>
         
         <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-          <h1 style={{ fontSize: "1.1rem", fontWeight: 800, margin: 0, color: "var(--text-primary)", letterSpacing: "-0.02em" }}>
+          <h1 style={{ fontSize: "1.05rem", fontWeight: 700, margin: 0, color: "#FFFFFF", letterSpacing: "-0.015em", fontFamily: "inherit" }}>
             {pageTitle || "PillSync"}
           </h1>
-          <span style={{ fontSize: "0.68rem", color: "var(--text-light)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+          <span style={{ fontSize: "0.65rem", color: "#94A3B8", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em" }}>
             {getBreadcrumb()}
           </span>
         </div>
-      </div>
-
-      {/* CENTER: Search Bar */}
-      <div style={{ flex: 1, maxWidth: 380, margin: "0 2rem", position: "relative" }}>
-        <motion.div
-          animate={{ scale: searchFocused ? 1.02 : 1 }}
-          transition={{ duration: 0.2 }}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            background: "var(--bg-secondary)",
-            border: searchFocused ? "1.5px solid var(--primary)" : "1px solid var(--border)",
-            borderRadius: 12,
-            padding: "0 0.85rem",
-            height: 38,
-            boxShadow: searchFocused ? "0 0 12px rgba(37,99,235,0.12)" : "none",
-            transition: "border-color 0.2s, box-shadow 0.2s"
-          }}
-        >
-          <Search size={16} style={{ color: searchFocused ? "var(--primary)" : "var(--text-light)", marginRight: "0.5rem" }} />
-          <input
-            type="text"
-            placeholder="Search medicines, reminders, patients..."
-            value={searchVal}
-            onChange={(e) => setSearchVal(e.target.value)}
-            onFocus={() => setSearchFocused(true)}
-            onBlur={() => setSearchFocused(false)}
-            style={{
-              background: "transparent",
-              border: "none",
-              outline: "none",
-              color: "var(--text-primary)",
-              fontSize: "0.82rem",
-              width: "100%"
-            }}
-          />
-        </motion.div>
       </div>
 
       {/* RIGHT SIDE: Tools & Dropdowns */}
       <div style={{ display: "flex", alignItems: "center", gap: "1.25rem" }}>
         
         {/* Date / Time */}
-        <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "var(--text-secondary)", fontSize: "0.78rem", fontWeight: 600 }}>
-          <Calendar size={14} style={{ color: "var(--primary)" }} />
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#E2E8F0", fontSize: "0.78rem", fontWeight: 600, background: "rgba(30, 41, 59, 0.6)", padding: "6px 12px", borderRadius: "10px", border: "1px solid rgba(255,255,255,0.05)" }}>
+          <Calendar size={13} style={{ color: "#06B6D4" }} />
           <span>{formattedDate}</span>
-          <span style={{ color: "var(--border)", margin: "0 2px" }}>|</span>
-          <Clock size={14} style={{ color: "var(--secondary)" }} />
+          <span style={{ color: "rgba(255,255,255,0.15)", margin: "0 2px" }}>|</span>
+          <Clock size={13} style={{ color: "#2563EB" }} />
           <span>{formattedTime}</span>
         </div>
 
         {/* Divider */}
-        <div style={{ width: 1, height: 20, background: "var(--border)" }} />
+        <div style={{ width: 1, height: 20, background: "rgba(255, 255, 255, 0.12)" }} />
 
         {/* Dark Mode Toggle */}
         <motion.button
@@ -254,11 +218,11 @@ const Navbar = ({ pageTitle }) => {
             document.documentElement.setAttribute("data-theme", next ? "dark" : "light");
             localStorage.setItem("pillsync-theme", next ? "dark" : "light");
           }}
-          whileHover={{ scale: 1.08, rotate: 45 }}
+          whileHover={{ scale: 1.05, background: "rgba(255, 255, 255, 0.08)" }}
           whileTap={{ scale: 0.95 }}
-          style={{ width: 34, height: 34, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", border: "1px solid var(--border)", background: "transparent" }}
+          style={{ width: 34, height: 34, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(30, 41, 59, 0.4)", transition: "background 0.2s" }}
         >
-          {darkMode ? <Sun size={15} color="#fbbf24" /> : <Moon size={15} />}
+          {darkMode ? <Sun size={15} color="#06B6D4" /> : <Moon size={15} color="#E2E8F0" />}
         </motion.button>
 
         {/* Bell / Notifications */}
@@ -266,11 +230,11 @@ const Navbar = ({ pageTitle }) => {
           <motion.button
             className="nav-icon-btn"
             onClick={handleBellClick}
-            whileHover={{ scale: 1.08, rotate: [0, -12, 12, -12, 12, 0] }}
-            whileTap={{ scale: 0.92 }}
-            style={{ width: 34, height: 34, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", border: "1px solid var(--border)", background: "transparent", position: "relative" }}
+            whileHover={{ scale: 1.05, background: "rgba(255, 255, 255, 0.08)", rotate: [0, -10, 10, 0] }}
+            whileTap={{ scale: 0.95 }}
+            style={{ width: 34, height: 34, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(30, 41, 59, 0.4)", position: "relative", transition: "background 0.2s" }}
           >
-            <Bell size={15} />
+            <Bell size={15} color="#E2E8F0" />
             <AnimatePresence>
               {unread > 0 && (
                 <motion.span
@@ -364,8 +328,8 @@ const Navbar = ({ pageTitle }) => {
               <User size={15} />
             </motion.div>
 
-            <span style={{ fontSize: "0.78rem", color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: "4px", fontWeight: 600 }}>
-              <span className="online-pulse-dot" style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--accent)", display: "inline-block" }} />
+            <span style={{ fontSize: "0.78rem", color: "#E2E8F0", display: "flex", alignItems: "center", gap: "6px", fontWeight: 600 }}>
+              <span className="online-pulse-dot" style={{ width: 6, height: 6, borderRadius: "50%", background: "#10B981", display: "inline-block", boxShadow: "0 0 8px #10B981" }} />
               Online
             </span>
           </div>
