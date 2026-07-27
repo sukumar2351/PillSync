@@ -265,6 +265,16 @@ async def lifespan(app: FastAPI):
         db.execute(text("ALTER TABLE caregiver_profiles ADD COLUMN IF NOT EXISTS emergency_phone VARCHAR(20);"))
         db.execute(text("ALTER TABLE caregiver_profiles ADD COLUMN IF NOT EXISTS profile_photo TEXT;"))
         db.execute(text("ALTER TABLE patient_profiles ADD COLUMN IF NOT EXISTS caregiver_id INTEGER REFERENCES caregiver_profiles(id) ON DELETE SET NULL;"))
+        db.execute(text("""
+            CREATE TABLE IF NOT EXISTS password_reset_tokens (
+                id SERIAL PRIMARY KEY,
+                email VARCHAR(150) NOT NULL,
+                otp_code VARCHAR(6) NOT NULL,
+                expires_at TIMESTAMP NOT NULL,
+                used BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+        """))
         
         db.commit()
         app_logger.info("Schema migrations applied successfully.")

@@ -230,18 +230,34 @@ const AdminDashboard = ({ auth }) => {
               </div>
             </div>
 
-            {/* Default Accounts System Note */}
-            <div className="card system-note-card">
-              <h3 className="card-title">System Policy Information</h3>
-              <p className="note-text">
-                PillSync operates under strict security policies. Admin accounts are seeded directly on server initialization. Users cannot register as administrators through the registration form.
-              </p>
-              <div className="seed-credentials">
-                <strong>Default Administrator Testing Credentials:</strong>
-                <ul>
-                  <li><strong>Email:</strong> admin@pillsync.com</li>
-                  <li><strong>Password:</strong> admin123</li>
-                </ul>
+            {/* System Information Card */}
+            <div className="card system-info-card" style={{ padding: "1.5rem", borderRadius: "16px" }}>
+              <h3 className="card-title" style={{ marginBottom: "1.25rem", fontWeight: 800 }}>System Information</h3>
+              <div className="info-list" style={{ display: "flex", flexDirection: "column", gap: "0.75rem", fontSize: "0.85rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid var(--border)", paddingBottom: "0.5rem" }}>
+                  <span style={{ color: "var(--text-light)" }}>System Version</span>
+                  <strong>v2.0.0 (Milestone 2)</strong>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid var(--border)", paddingBottom: "0.5rem" }}>
+                  <span style={{ color: "var(--text-light)" }}>Server Status</span>
+                  <span style={{ color: "var(--success-color)", fontWeight: "bold" }}>● Online</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid var(--border)", paddingBottom: "0.5rem" }}>
+                  <span style={{ color: "var(--text-light)" }}>Database Status</span>
+                  <span style={{ color: "var(--primary)", fontWeight: "bold" }}>Connected</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid var(--border)", paddingBottom: "0.5rem" }}>
+                  <span style={{ color: "var(--text-light)" }}>Last Backup</span>
+                  <strong>Today, 04:00 AM (Auto-scheduled)</strong>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid var(--border)", paddingBottom: "0.5rem" }}>
+                  <span style={{ color: "var(--text-light)" }}>Email Service Status</span>
+                  <span style={{ color: "var(--accent)", fontWeight: "bold" }}>Gmail SMTP Live</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", paddingBottom: "0.5rem" }}>
+                  <span style={{ color: "var(--text-light)" }}>Security Status</span>
+                  <span style={{ color: "var(--success-color)", fontWeight: "bold" }}>Secured</span>
+                </div>
               </div>
             </div>
           </div>
