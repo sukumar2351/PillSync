@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Plus, Bell, Pill, Check, LogOut, ShieldAlert, Award, Calendar, RefreshCw, X, Edit, Trash, Activity, Users } from "lucide-react";
+import { Plus, Bell, Pill, Check, LogOut, ShieldAlert, Award, Calendar, RefreshCw, X, Edit, Trash, Activity, Users, Eye } from "lucide-react";
 import { authService, medicineService } from "../services/api";
+import Sidebar from "../components/Sidebar";
+import Navbar from "../components/Navbar";
 
-const PatientDashboard = ({ user, setAuth }) => {
+const PatientDashboard = ({ auth, setAuth }) => {
   const navigate = useNavigate();
-  const [userData, setUserData] = useState(user);
+  const [userData, setUserData] = useState(null);
   const [medicines, setMedicines] = useState([]);
   const [reminders, setReminders] = useState([]);
   const [historyStats, setHistoryStats] = useState(null);
@@ -297,162 +299,247 @@ const PatientDashboard = ({ user, setAuth }) => {
     setEditingMed(null);
   };
 
-  const handleLogout = () => {
-    authService.logout();
-    setAuth({ token: null, role: null, email: null });
-    navigate("/login");
-  };
-
   if (isLoading) {
     return (
-      <div className="flex-center" style={{ minHeight: "100vh", background: "var(--bg-base)", flexDirection: "column", gap: "1rem" }}>
-        <div className="spinner" style={{ width: "32px", height: "32px", borderTopColor: "var(--primary)" }} />
-        <span style={{ color: "var(--text-secondary)", fontSize: "0.9rem" }}>Powering up PillSync...</span>
+      <div className="app-container" style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
+        <Sidebar role={auth?.role} email={auth?.email} />
+        <div className="main-content flex-center" style={{ flex: 1, display: "flex", flexDirection: "column", height: "100vh", overflowY: "auto" }}>
+          <div className="spinner" />
+        </div>
       </div>
     );
   }
 
+  const profile = userData?.profile || {};
+
+  // Split reminders into different compliance categories
+  const completedReminders = reminders.filter(r => r.status === "Taken");
+  const missedReminders = reminders.filter(r => r.status === "Missed");
+  const pendingReminders = reminders.filter(r => r.status === "Pending");
+
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: "var(--bg-base)" }}>
-      {/* Sidebar container */}
-      <div style={{ width: "260px", background: "var(--bg-card)", borderRight: "1px solid var(--border)", display: "flex", flexDirection: "column", justifyContent: "space-between", padding: "1.5rem" }}>
-        <div>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "2rem" }}>
-            <Activity size={24} color="var(--primary)" />
-            <span style={{ fontSize: "1.15rem", fontWeight: "800", color: "var(--text-main)" }}>PillSync Dashboard</span>
+    <div className="app-container" style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
+      <Sidebar role={auth?.role} email={auth?.email} />
+
+      <div className="main-content" style={{ flex: 1, display: "flex", flexDirection: "column", height: "100vh", overflowY: "auto" }}>
+        <Navbar pageTitle="Patient Dashboard" />
+
+        <main className="content-area" style={{ padding: "2rem" }}>
+          {errorMsg && <div className="alert alert-danger">{errorMsg}</div>}
+          {successMsg && <div className="alert alert-success">{successMsg}</div>}
+
+          {/* Welcome Banner Card */}
+          <div className="welcome-banner card" style={{ borderLeft: "4px solid var(--primary-color)", marginBottom: "2rem" }}>
+            <h2>Welcome back, {profile.full_name || "Patient"}!</h2>
+            <p>You are logged into your Patient Dashboard. Manage your medicines, reminders, medication history and health records from here.</p>
           </div>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-            <Link to="/patient-dashboard" className="sidebar-link active" style={{ textDecoration: "none", color: "var(--text-main)", display: "flex", alignItems: "center", gap: "0.75rem", padding: "0.75rem", borderRadius: "8px" }}>
-              <Pill size={18} />
-              <span>Medicines List</span>
-            </Link>
-            <Link to="/profile" className="sidebar-link" style={{ textDecoration: "none", color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: "0.75rem", padding: "0.75rem", borderRadius: "8px" }}>
-              <Users size={18} />
-              <span>My Profile</span>
-            </Link>
-            <Link to="/notifications" className="sidebar-link" style={{ textDecoration: "none", color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: "0.75rem", padding: "0.75rem", borderRadius: "8px" }}>
-              <Bell size={18} />
-              <span>Preferences</span>
-            </Link>
-          </div>
-        </div>
-
-        <button onClick={handleLogout} className="btn btn-secondary flex-center" style={{ gap: "0.5rem", color: "var(--error-color)", borderColor: "var(--border)" }}>
-          <LogOut size={16} />
-          <span>Sign Out</span>
-        </button>
-      </div>
-
-      {/* Main panel */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflowY: "auto", height: "100vh" }}>
-        
-        {/* Top Navbar */}
-        <header style={{ height: "64px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 2rem", background: "var(--bg-card)" }}>
-          <h2 style={{ fontSize: "1.1rem", fontWeight: 800 }}>Welcome Back, {userData?.profile?.full_name || "Patient"}</h2>
-          <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-            <span className="badge badge-secondary" style={{ textTransform: "capitalize" }}>{userData?.role} Account</span>
-          </div>
-        </header>
-
-        {/* Content Wrapper */}
-        <main style={{ padding: "2rem", display: "flex", flexDirection: "column", gap: "2rem" }}>
-          
-          {successMsg && (
-            <div className="alert alert-success" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span>{successMsg}</span>
-              <button onClick={() => setSuccessMsg("")} style={{ background: "transparent", border: "none", cursor: "pointer", color: "inherit" }}><X size={16} /></button>
+          {/* Two-Column Profile Grid */}
+          <div className="grid grid-cols-2" style={{ gap: "1.5rem", marginBottom: "2rem" }}>
+            {/* Card 1: Patient Profile */}
+            <div className="card">
+              <h3 className="card-title">Patient Profile</h3>
+              <div className="info-list">
+                <div className="info-item">
+                  <span className="info-label">Name:</span>
+                  <span className="info-val">{profile.full_name || "Not provided"}</span>
+                </div>
+                <div className="info-item">
+                  <span className="info-label">Email:</span>
+                  <span className="info-val">{userData?.email}</span>
+                </div>
+                <div className="info-item">
+                  <span className="info-label">Phone:</span>
+                  <span className="info-val">{profile.phone || "—"}</span>
+                </div>
+                <div className="info-item">
+                  <span className="info-label">Gender:</span>
+                  <span className="info-val capitalize">{profile.gender || "—"}</span>
+                </div>
+                <div className="info-item">
+                  <span className="info-label">Age:</span>
+                  <span className="info-val">{profile.age || "—"}</span>
+                </div>
+                <div className="info-item">
+                  <span className="info-label">Blood Group:</span>
+                  <span className="info-val">{profile.blood_group || "—"}</span>
+                </div>
+                <div className="info-item">
+                  <span className="info-label">Account Status:</span>
+                  <span className={`badge ${profile.account_status === "Active" ? "badge-success" : "badge-secondary"}`}>
+                    {profile.account_status || "Active"}
+                  </span>
+                </div>
+              </div>
             </div>
-          )}
 
-          {errorMsg && (
-            <div className="alert alert-danger" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span>{errorMsg}</span>
-              <button onClick={() => setErrorMsg("")} style={{ background: "transparent", border: "none", cursor: "pointer", color: "inherit" }}><X size={16} /></button>
-            </div>
-          )}
-
-          {/* Compliance Stats Cards */}
-          <div className="grid grid-cols-4" style={{ gap: "1.5rem" }}>
-            <div className="card" style={{ padding: "1.25rem", borderRadius: "12px", borderLeft: "4px solid var(--primary)" }}>
-              <span style={{ color: "var(--text-light)", fontSize: "0.75rem", display: "block" }}>Compliance Rate</span>
-              <h3 style={{ fontSize: "1.75rem", fontWeight: 800, margin: "0.25rem 0" }}>{historyStats?.adherence_rate || 0}%</h3>
-              <span style={{ fontSize: "0.7rem", color: "var(--text-light)" }}>Target goal is 95%+</span>
-            </div>
-            <div className="card" style={{ padding: "1.25rem", borderRadius: "12px", borderLeft: "4px solid var(--success-color)" }}>
-              <span style={{ color: "var(--text-light)", fontSize: "0.75rem", display: "block" }}>Doses Logged</span>
-              <h3 style={{ fontSize: "1.75rem", fontWeight: 800, margin: "0.25rem 0" }}>{historyStats?.total_taken || 0}</h3>
-              <span style={{ fontSize: "0.7rem", color: "var(--text-light)" }}>All historical intakes</span>
-            </div>
-            <div className="card" style={{ padding: "1.25rem", borderRadius: "12px", borderLeft: "4px solid var(--error-color)" }}>
-              <span style={{ color: "var(--text-light)", fontSize: "0.75rem", display: "block" }}>Missed Doses</span>
-              <h3 style={{ fontSize: "1.75rem", fontWeight: 800, margin: "0.25rem 0" }}>{historyStats?.total_missed || 0}</h3>
-              <span style={{ fontSize: "0.7rem", color: "var(--text-light)" }}>Log missed alerts</span>
-            </div>
-            <div className="card" style={{ padding: "1.25rem", borderRadius: "12px", borderLeft: "4px solid var(--accent)" }}>
-              <span style={{ color: "var(--text-light)", fontSize: "0.75rem", display: "block" }}>Active Medicines</span>
-              <h3 style={{ fontSize: "1.75rem", fontWeight: 800, margin: "0.25rem 0" }}>{medicines.length}</h3>
-              <span style={{ fontSize: "0.7rem", color: "var(--text-light)" }}>Currently tracking</span>
+            {/* Card 2: Address Information */}
+            <div className="card">
+              <h3 className="card-title">Address Information</h3>
+              <div className="info-list">
+                <div className="info-item-block" style={{ marginBottom: "1rem" }}>
+                  <span className="info-label-block">Home Address</span>
+                  <p className="info-val-block">{profile.address || "No address provided."}</p>
+                </div>
+                <div className="info-item">
+                  <span className="info-label">Emergency Contact:</span>
+                  <span className="info-val">{profile.emergency_contact || "—"}</span>
+                </div>
+                <div className="info-item">
+                  <span className="info-label">Assigned Caregiver:</span>
+                  <span className="info-val" style={{ fontWeight: "bold", color: "var(--primary-color)" }}>
+                    {profile.caregiver_name || "No caregiver assigned"}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Today's Checklist Schedule Module */}
-          <div className="card" style={{ padding: "1.5rem", borderRadius: "16px" }}>
-            <h3 style={{ margin: "0 0 1rem 0", fontSize: "1.1rem", fontWeight: "800" }}>Today's Medicine Checklist</h3>
+          {/* Today's Medication & Compliance Section */}
+          <div className="grid grid-cols-2" style={{ gap: "1.5rem", marginBottom: "2rem" }}>
             
-            <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-              {reminders.map((r) => (
-                <div key={r.id} className="flex-center" style={{ justifyContent: "space-between", padding: "1rem", background: "var(--bg-secondary)", borderRadius: "12px", border: "1px solid var(--border)" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-                    <div style={{ width: "36px", height: "36px", borderRadius: "8px", background: "rgba(37,99,235,0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--primary)" }}>
-                      <Pill size={20} />
-                    </div>
-                    <div>
-                      <h4 style={{ margin: "0 0 0.25rem", fontSize: "0.95rem" }}>{r.name}</h4>
-                      <div style={{ fontSize: "0.8rem", color: "var(--text-light)", display: "flex", gap: "1rem" }}>
-                        <span>Dosage: <strong>{r.dosage}</strong></span>
-                        <span>Time: <strong>{r.time_of_day} ({r.scheduled_time})</strong></span>
-                        <span>Food: <strong>{r.food_relation}</strong></span>
+            {/* Today's Medicines (Checklist) */}
+            <div className="card" style={{ padding: "1.5rem" }}>
+              <h3 className="card-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span>Today's Medicines Checklist</span>
+                <span className="badge badge-primary">{pendingReminders.length} Pending</span>
+              </h3>
+              <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginTop: "1rem" }}>
+                {pendingReminders.map((r) => (
+                  <div key={r.id} className="flex-center" style={{ justifyContent: "space-between", padding: "1rem", background: "var(--bg-secondary)", borderRadius: "12px", border: "1px solid var(--border)" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+                      <div style={{ width: "36px", height: "36px", borderRadius: "8px", background: "rgba(37,99,235,0.1)", display: "flex", alignItems: "center", justify: "center", color: "var(--primary-color)" }}>
+                        <Pill size={20} />
+                      </div>
+                      <div>
+                        <h4 style={{ margin: "0 0 0.25rem", fontSize: "0.95rem" }}>{r.name}</h4>
+                        <div style={{ fontSize: "0.8rem", color: "var(--text-light)", display: "flex", gap: "1rem" }}>
+                          <span>Dosage: <strong>{r.dosage}</strong></span>
+                          <span>Time: <strong>{r.scheduled_time}</strong></span>
+                          <span>Food: <strong>{r.food_relation}</strong></span>
+                        </div>
                       </div>
                     </div>
+                    <div style={{ display: "flex", gap: "0.5rem" }}>
+                      <button onClick={() => handleLogDose(r.id, "Taken", r.time_of_day)} className="btn btn-primary" style={{ padding: "0.4rem 0.8rem", fontSize: "0.8rem", display: "flex", alignItems: "center", gap: "0.3rem" }}>
+                        <Check size={14} /> Take
+                      </button>
+                      <button onClick={() => handleLogDose(r.id, "Missed", r.time_of_day)} className="btn btn-secondary" style={{ padding: "0.4rem 0.8rem", fontSize: "0.8rem", color: "var(--error-color)" }}>
+                        Miss
+                      </button>
+                      <button onClick={() => handleSnooze(r.id)} className="btn btn-secondary" style={{ padding: "0.4rem 0.8rem", fontSize: "0.8rem" }}>
+                        Snooze
+                      </button>
+                    </div>
                   </div>
+                ))}
+                {pendingReminders.length === 0 && (
+                  <div style={{ padding: "2rem", textAlign: "center", color: "var(--text-light)" }}>
+                    <Check size={28} color="var(--success-color)" style={{ marginBottom: "0.5rem" }} />
+                    <p style={{ margin: 0, fontSize: "0.9rem" }}>Awesome! All pending medicines logged for today.</p>
+                  </div>
+                )}
+              </div>
+            </div>
 
-                  <div style={{ display: "flex", gap: "0.5rem" }}>
-                    {r.status === "Pending" ? (
-                      <>
-                        <button onClick={() => handleLogDose(r.id, "Taken", r.time_of_day)} className="btn btn-primary" style={{ padding: "0.4rem 0.8rem", fontSize: "0.8rem", display: "flex", alignItems: "center", gap: "0.3rem" }}>
-                          <Check size={14} /> Mark Taken
-                        </button>
-                        <button onClick={() => handleLogDose(r.id, "Missed", r.time_of_day)} className="btn btn-secondary" style={{ padding: "0.4rem 0.8rem", fontSize: "0.8rem", color: "var(--error-color)" }}>
-                          Missed
-                        </button>
-                        <button onClick={() => handleSnooze(r.id)} className="btn btn-secondary" style={{ padding: "0.4rem 0.8rem", fontSize: "0.8rem" }}>
-                          Snooze
-                        </button>
-                      </>
-                    ) : (
-                      <span className={`badge ${r.status === "Taken" ? "badge-success" : "badge-secondary"}`} style={{ padding: "0.5rem 1rem", borderRadius: "20px" }}>
-                        {r.status}
-                      </span>
-                    )}
+            {/* Statistics & Reminder Preferences */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+              {/* Adherence Card */}
+              <div className="card" style={{ flex: 1 }}>
+                <h3 className="card-title">Medication Adherence</h3>
+                <div className="grid grid-cols-3" style={{ gap: "1rem", textAlign: "center", marginTop: "1rem" }}>
+                  <div style={{ background: "var(--bg-secondary)", padding: "1rem", borderRadius: "10px" }}>
+                    <span style={{ fontSize: "0.75rem", color: "var(--text-light)", display: "block" }}>Compliance Rate</span>
+                    <strong style={{ fontSize: "1.5rem", color: "var(--primary-color)" }}>{historyStats?.adherence_rate || 0}%</strong>
+                  </div>
+                  <div style={{ background: "var(--bg-secondary)", padding: "1rem", borderRadius: "10px" }}>
+                    <span style={{ fontSize: "0.75rem", color: "var(--text-light)", display: "block" }}>Doses Logged</span>
+                    <strong style={{ fontSize: "1.5rem", color: "var(--success-color)" }}>{historyStats?.total_taken || 0}</strong>
+                  </div>
+                  <div style={{ background: "var(--bg-secondary)", padding: "1rem", borderRadius: "10px" }}>
+                    <span style={{ fontSize: "0.75rem", color: "var(--text-light)", display: "block" }}>Missed Doses</span>
+                    <strong style={{ fontSize: "1.5rem", color: "var(--error-color)" }}>{historyStats?.total_missed || 0}</strong>
                   </div>
                 </div>
-              ))}
+              </div>
 
-              {reminders.length === 0 && (
-                <div style={{ padding: "3rem", textAlign: "center", color: "var(--text-light)" }}>
-                  <Calendar size={36} style={{ opacity: 0.5, marginBottom: "0.5rem" }} />
-                  <p>All clear! No pending reminders schedules for today.</p>
+              {/* Preference / Service settings card */}
+              <div className="card">
+                <h3 className="card-title">Reminder Status</h3>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginTop: "1rem", fontSize: "0.85rem" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ color: "var(--text-light)" }}>Twilio SMS Reminders:</span>
+                    <strong style={{ color: notifSettings?.sms_enabled ? "var(--success-color)" : "var(--text-light)" }}>
+                      {notifSettings?.sms_enabled ? "Active" : "Disabled"}
+                    </strong>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ color: "var(--text-light)" }}>Email Reminders:</span>
+                    <strong style={{ color: notifSettings?.email_enabled ? "var(--success-color)" : "var(--text-light)" }}>
+                      {notifSettings?.email_enabled ? "Active" : "Disabled"}
+                    </strong>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ color: "var(--text-light)" }}>Browser Push:</span>
+                    <strong style={{ color: notifSettings?.browser_notifications ? "var(--success-color)" : "var(--text-light)" }}>
+                      {notifSettings?.browser_notifications ? "Active" : "Disabled"}
+                    </strong>
+                  </div>
                 </div>
-              )}
+              </div>
             </div>
           </div>
 
-          {/* Medicines database management */}
-          <div className="card" style={{ padding: "1.5rem", borderRadius: "16px" }}>
+          {/* Completed / Missed / Upcoming breakdown grids */}
+          <div className="grid grid-cols-3" style={{ gap: "1.5rem", marginBottom: "2rem" }}>
+            {/* Completed Medicines Card */}
+            <div className="card">
+              <h3 className="card-title" style={{ color: "var(--success-color)" }}>Completed Today</h3>
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "1rem", fontSize: "0.85rem" }}>
+                {completedReminders.map(c => (
+                  <div key={c.id} style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid var(--border)", paddingBottom: "0.4rem" }}>
+                    <span>{c.name} ({c.dosage})</span>
+                    <span style={{ color: "var(--text-light)" }}>{c.scheduled_time}</span>
+                  </div>
+                ))}
+                {completedReminders.length === 0 && <span style={{ color: "var(--text-light)" }}>No completed doses logged yet.</span>}
+              </div>
+            </div>
+
+            {/* Missed Doses Card */}
+            <div className="card">
+              <h3 className="card-title" style={{ color: "var(--error-color)" }}>Missed Today</h3>
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "1rem", fontSize: "0.85rem" }}>
+                {missedReminders.map(m => (
+                  <div key={m.id} style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid var(--border)", paddingBottom: "0.4rem" }}>
+                    <span>{m.name} ({m.dosage})</span>
+                    <span style={{ color: "var(--text-light)" }}>{m.scheduled_time}</span>
+                  </div>
+                ))}
+                {missedReminders.length === 0 && <span style={{ color: "var(--text-light)" }}>No missed doses logged today.</span>}
+              </div>
+            </div>
+
+            {/* Upcoming Medicines */}
+            <div className="card">
+              <h3 className="card-title" style={{ color: "var(--primary-color)" }}>Upcoming Medicines</h3>
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "1rem", fontSize: "0.85rem" }}>
+                {pendingReminders.map(p => (
+                  <div key={p.id} style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid var(--border)", paddingBottom: "0.4rem" }}>
+                    <span>{p.name} ({p.dosage})</span>
+                    <strong>{p.scheduled_time}</strong>
+                  </div>
+                ))}
+                {pendingReminders.length === 0 && <span style={{ color: "var(--text-light)" }}>No upcoming doses.</span>}
+              </div>
+            </div>
+          </div>
+
+          {/* Medicines database management table card */}
+          <div className="card" style={{ padding: "2rem", borderRadius: "16px" }}>
             <div className="flex-center" style={{ justifyContent: "space-between", marginBottom: "1.5rem" }}>
-              <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: "800" }}>Active Medications</h3>
-              <button onClick={() => { resetForm(); setShowAddModal(true); }} className="btn btn-primary" style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+              <h3 className="card-title" style={{ margin: 0, fontWeight: 800 }}>Manage Medication Database</h3>
+              <button onClick={() => { resetForm(); setShowAddModal(true); }} className="btn btn-primary" style={{ display: "flex", alignItems: "center", gap: "0.4rem", padding: "0.5rem 1rem", borderRadius: "8px" }}>
                 <Plus size={16} /> Add Medicine
               </button>
             </div>
@@ -463,11 +550,11 @@ const PatientDashboard = ({ user, setAuth }) => {
                   <tr>
                     <th>Medicine Name</th>
                     <th>Dosage</th>
-                    <th>Remaining Quantity</th>
-                    <th>Schedules</th>
+                    <th>Remaining Stock</th>
+                    <th>Schedule Times</th>
                     <th>Instruction</th>
-                    <th>Start / End Date</th>
-                    <th>Actions</th>
+                    <th>Duration</th>
+                    <th style={{ textAlign: "right" }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -475,32 +562,35 @@ const PatientDashboard = ({ user, setAuth }) => {
                     <tr key={med.id}>
                       <td><strong>{med.name}</strong></td>
                       <td>{med.dosage}</td>
-                      <td>{med.quantity} left</td>
                       <td>
-                        <div style={{ display: "flex", gap: "0.2rem", flexWrap: "wrap" }}>
+                        <span className={`badge ${med.quantity <= 5 ? "badge-danger" : "badge-secondary"}`}>
+                          {med.quantity} left
+                        </span>
+                      </td>
+                      <td>
+                        <div style={{ display: "flex", gap: "0.3rem", flexWrap: "wrap" }}>
                           {med.reminder_schedules?.map(s => (
-                            <span key={s.id} className="badge badge-primary" style={{ fontSize: "0.7rem", whiteSpace: "nowrap" }}>
+                            <span key={s.id} className="badge badge-primary" style={{ fontSize: "0.72rem" }}>
                               {s.scheduled_time}
                             </span>
                           ))}
-                          {(!med.reminder_schedules || med.reminder_schedules.length === 0) && <span style={{ color: "var(--text-light)" }}>—</span>}
                         </div>
                       </td>
                       <td>{med.food_relation}</td>
                       <td style={{ fontSize: "0.8rem", color: "var(--text-light)" }}>
                         {med.start_date} to {med.end_date}
                       </td>
-                      <td>
-                        <div style={{ display: "flex", gap: "0.4rem" }}>
-                          <button onClick={() => openEditModal(med)} className="btn btn-secondary" style={{ padding: "0.2rem 0.4rem", fontSize: "0.75rem" }}>Edit</button>
-                          <button onClick={() => handleDeleteMedicine(med.id)} className="btn btn-danger" style={{ padding: "0.2rem 0.4rem", fontSize: "0.75rem", background: "#ef4444", borderColor: "#ef4444", color: "#fff" }}>Delete</button>
+                      <td style={{ textAlign: "right" }}>
+                        <div style={{ display: "flex", gap: "0.4rem", justifyContent: "flex-end" }}>
+                          <button onClick={() => openEditModal(med)} className="btn btn-secondary" style={{ padding: "0.3rem 0.6rem", fontSize: "0.78rem" }}>Edit</button>
+                          <button onClick={() => handleDeleteMedicine(med.id)} className="btn btn-danger" style={{ padding: "0.3rem 0.6rem", fontSize: "0.78rem", background: "var(--error-color)", borderColor: "var(--error-color)", color: "#fff" }}>Delete</button>
                         </div>
                       </td>
                     </tr>
                   ))}
                   {medicines.length === 0 && (
                     <tr>
-                      <td colSpan="7" style={{ textAlign: "center", padding: "3rem", color: "var(--text-light)" }}>No medications tracked yet. Add your first medicine to get started!</td>
+                      <td colSpan="7" style={{ textAlign: "center", padding: "2rem", color: "var(--text-light)" }}>No medications in database. Create your first medication record now.</td>
                     </tr>
                   )}
                 </tbody>
@@ -530,10 +620,9 @@ const PatientDashboard = ({ user, setAuth }) => {
               </div>
               <div className="form-group" style={{ marginBottom: "1rem" }}>
                 <label className="form-label">Frequency</label>
-                <input type="text" className="form-input" required value={medFrequency} onChange={(e) => setMedFrequency(e.target.value)} placeholder="e.g. Daily or Every 12 Hours" />
+                <input type="text" className="form-input" required value={medFrequency} onChange={(e) => setMedFrequency(e.target.value)} placeholder="e.g. Daily" />
               </div>
 
-              {/* Dynamic Reminder Times section */}
               <div className="form-group" style={{ marginBottom: "1rem" }}>
                 <label className="form-label">Times Per Day</label>
                 <select className="form-input" value={medTimesPerDay} onChange={(e) => handleTimesPerDayChange(e.target.value)}>
@@ -606,7 +695,7 @@ const PatientDashboard = ({ user, setAuth }) => {
 
               <div className="form-group" style={{ marginBottom: "1.5rem" }}>
                 <label className="form-label">Notes (Optional)</label>
-                <textarea className="form-input" value={medNotes} onChange={(e) => setMedNotes(e.target.value)} placeholder="Take with warm water, avoid milk..." rows="2" />
+                <textarea className="form-input" value={medNotes} onChange={(e) => setMedNotes(e.target.value)} placeholder="Take with warm water..." rows="2" />
               </div>
 
               <div style={{ display: "flex", gap: "1rem", justifyContent: "flex-end" }}>
@@ -641,7 +730,6 @@ const PatientDashboard = ({ user, setAuth }) => {
                 <input type="text" className="form-input" required value={medFrequency} onChange={(e) => setMedFrequency(e.target.value)} />
               </div>
 
-              {/* Dynamic Reminder Times section (Edit) */}
               <div className="form-group" style={{ marginBottom: "1rem" }}>
                 <label className="form-label">Times Per Day</label>
                 <select className="form-input" value={medTimesPerDay} onChange={(e) => handleTimesPerDayChange(e.target.value)}>

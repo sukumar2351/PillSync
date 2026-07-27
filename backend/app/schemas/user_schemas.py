@@ -79,6 +79,7 @@ class PatientProfileResponse(BaseModel):
     address: Optional[str] = None
     emergency_contact: Optional[str] = None
     account_status: str
+    caregiver_name: Optional[str] = None
 
     class Config:
         from_attributes = True

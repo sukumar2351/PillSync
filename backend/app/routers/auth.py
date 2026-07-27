@@ -68,7 +68,8 @@ def get_current_user_details(current_user: User = Depends(get_current_user), db:
                 "blood_group": profile.blood_group,
                 "address": profile.address,
                 "emergency_contact": profile.emergency_contact,
-                "account_status": profile.account_status
+                "account_status": profile.account_status,
+                "caregiver_name": profile.caregiver.full_name if profile.caregiver else None
             }
         elif role_name == "caregiver":
             profile_data = {
