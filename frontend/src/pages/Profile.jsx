@@ -4,19 +4,14 @@ import { authService, userService, caregiverService } from "../services/api";
 import Sidebar from "../components/Sidebar";
 import Navbar from "../components/Navbar";
 
-// ── Form Input Wrapper (with staggers, 3D lift, and focus glow scaling) ──
-const AnimatedFormGroup = ({ children, delay, error }) => {
+// ── Form Input Wrapper (Static, responsive and focus glow scaling) ──
+const AnimatedFormGroup = ({ children, error }) => {
   const [isFocused, setIsFocused] = useState(false);
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      whileInView={{ opacity: 1 }}
-      viewport={{ once: true, margin: "-20px" }}
-      transition={{ duration: 0.7, delay, ease: "easeOut" }}
+    <div
       onFocusCapture={() => setIsFocused(true)}
       onBlurCapture={() => setIsFocused(false)}
-      whileHover={{ y: -2, transition: { duration: 0.2 } }}
       style={{
         display: "flex",
         flexDirection: "column",
@@ -29,38 +24,16 @@ const AnimatedFormGroup = ({ children, delay, error }) => {
       className={error ? "shake-error" : ""}
     >
       {children}
-    </motion.div>
+    </div>
   );
 };
 
 // ── Letter Stagger for the Header Title ──
 const StaggeredTitle = ({ text }) => {
-  const letters = Array.from(text);
-  const container = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: { staggerChildren: 0.05, delayChildren: 0.1 }
-    }
-  };
-  const item = {
-    hidden: { opacity: 0, y: 12, filter: "blur(4px)" },
-    visible: { opacity: 1, y: 0, filter: "blur(0px)", transition: { duration: 0.5 } }
-  };
-
   return (
-    <motion.h2
-      variants={container}
-      initial="hidden"
-      animate="visible"
-      style={{ fontSize: "1.85rem", fontWeight: 900, margin: 0, color: "var(--text-primary)", letterSpacing: "-0.03em" }}
-    >
-      {letters.map((char, idx) => (
-        <motion.span key={idx} variants={item} style={{ display: "inline-block" }}>
-          {char === " " ? "\u00A0" : char}
-        </motion.span>
-      ))}
-    </motion.h2>
+    <h2 style={{ fontSize: "1.85rem", fontWeight: 900, margin: 0, color: "var(--text-primary)", letterSpacing: "-0.03em" }}>
+      {text}
+    </h2>
   );
 };
 
@@ -304,14 +277,9 @@ const Profile = ({ auth }) => {
           {/* Header Title Block */}
           <div style={{ marginBottom: "2rem", position: "relative", zIndex: 2 }}>
             <StaggeredTitle text="Manage Profile" />
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.6, duration: 1.0 }}
-              style={{ fontSize: "0.85rem", color: "var(--text-light)", marginTop: "0.35rem" }}
-            >
+            <p style={{ fontSize: "0.85rem", color: "var(--text-light)", marginTop: "0.35rem" }}>
               Update your health settings and personal metadata record. Last sync: Monday, July 20, 2026.
-            </motion.p>
+            </p>
           </div>
 
           {/* Success Toast */}
@@ -359,35 +327,24 @@ const Profile = ({ auth }) => {
             )}
           </AnimatePresence>
 
-          {/* 3D Perspective Card Wrapper */}
-          <div style={{ perspective: 1200, width: "100%", position: "relative", zIndex: 2 }}>
-            <motion.div
-              ref={cardRef}
-              onMouseMove={handleMouseMove}
-              onMouseLeave={handleMouseLeave}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 1.0, ease: "easeOut" }}
+          {/* Static Glassmorphic Card Wrapper */}
+          <div style={{ width: "100%", position: "relative", zIndex: 2 }}>
+            <div
               style={{
-                transformStyle: "preserve-3d",
-                rotateX,
-                rotateY,
-                translateZ,
                 background: "var(--bg-card)",
                 border: "1px solid var(--border)",
                 boxShadow: "0 25px 50px -12px rgba(0,0,0,0.06), 0 0 40px rgba(37,99,235,0.02)",
                 borderRadius: "24px",
                 padding: "2.5rem",
                 backdropFilter: "blur(16px)",
-                WebkitBackdropFilter: "blur(16px)",
-                cursor: "pointer"
+                WebkitBackdropFilter: "blur(16px)"
               }}
             >
-              <h3 className="card-title" style={{ fontWeight: 850, fontSize: "1.15rem", marginBottom: "2rem", letterSpacing: "-0.01em", transform: "translateZ(30px)" }}>
+              <h3 className="card-title" style={{ fontWeight: 850, fontSize: "1.15rem", marginBottom: "2rem", letterSpacing: "-0.01em" }}>
                 Personal Metadata Editor
               </h3>
               
-              <form onSubmit={handleSave} noValidate style={{ transform: "translateZ(15px)", transformStyle: "preserve-3d" }}>
+              <form onSubmit={handleSave} noValidate>
                 <div className="grid grid-cols-2" style={{ gap: "1.5rem" }}>
                   
                   {/* Full Name */}
@@ -619,7 +576,7 @@ const Profile = ({ auth }) => {
                   </motion.button>
                 </div>
               </form>
-            </motion.div>
+            </div>
           </div>
         </main>
       </div>
