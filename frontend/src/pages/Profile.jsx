@@ -10,8 +10,8 @@ const AnimatedFormGroup = ({ children, delay, error }) => {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 30, scale: 0.97 }}
-      whileInView={{ opacity: 1, y: 0, scale: 1 }}
+      initial={{ opacity: 0 }}
+      whileInView={{ opacity: 1 }}
       viewport={{ once: true, margin: "-20px" }}
       transition={{ duration: 0.7, delay, ease: "easeOut" }}
       onFocusCapture={() => setIsFocused(true)}
@@ -365,8 +365,8 @@ const Profile = ({ auth }) => {
               ref={cardRef}
               onMouseMove={handleMouseMove}
               onMouseLeave={handleMouseLeave}
-              initial={{ opacity: 0, y: 40, scale: 0.94, rotateX: 10 }}
-              animate={{ opacity: 1, y: 0, scale: 1, rotateX: 0 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
               transition={{ duration: 1.0, ease: "easeOut" }}
               style={{
                 transformStyle: "preserve-3d",

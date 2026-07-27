@@ -174,6 +174,9 @@ def get_patient_history_details(patient_id: int, db: Session = Depends(get_db), 
         "name": m.name,
         "dosage": m.dosage,
         "frequency": m.frequency,
+        "food_relationship": m.food_relation,
+        "start_date": m.start_date.strftime("%Y-%m-%d") if m.start_date else "",
+        "end_date": m.end_date.strftime("%Y-%m-%d") if m.end_date else "",
         "instructions": m.notes or "Take as directed by physician"
     } for m in medicines]
 
@@ -185,9 +188,11 @@ def get_patient_history_details(patient_id: int, db: Session = Depends(get_db), 
     logs_list = [{
         "id": h.id,
         "date": h.scheduled_date.strftime("%Y-%m-%d") if h.scheduled_date else "",
-        "time": h.action_time.strftime("%H:%M:%S") if h.action_time else h.time_of_day,
-        "medicine": h.medicine_name,
-        "status": h.status
+        "time": h.action_time.strftime("%H:%M:%S") if h.action_time else "",
+        "medicine_name": h.medicine_name,
+        "scheduled_time": h.time_of_day,
+        "status": h.status,
+        "caregiver_notes": "—"
     } for h in history_logs]
 
     # 5. Adherence Statistics calculation
@@ -211,13 +216,52 @@ def get_patient_history_details(patient_id: int, db: Session = Depends(get_db), 
     monthly_rate = (taken_monthly / total_monthly * 100) if total_monthly > 0 else 100.0
 
     # 6. Today's lists categorisation
-    completed_today = [l["medicine"] for l in logs_list if l["date"] == today.strftime("%Y-%m-%d") and l["status"] == "Taken"]
-    missed_today = [l["medicine"] for l in logs_list if l["date"] == today.strftime("%Y-%m-%d") and l["status"] == "Missed"]
+    today = date.today()
+    completed_today = []
+    missed_today = []
+    pending_today = []
+    upcoming_today = []
+    today_medicines = []
+
+    # Get all active medicines for today
+    today_meds = db.query(Medicine).filter(
+        Medicine.user_id == patient_id,
+        Medicine.start_date <= today,
+        Medicine.end_date >= today
+    ).all()
+
+    current_hour = datetime.now().hour
+
+    for m in today_meds:
+        for sched in m.reminder_schedules:
+            today_medicines.append(f"{m.name} ({sched.time_of_day})")
+            
+            # Check if there is a log
+            logged = db.query(MedicationHistory).filter(
+                MedicationHistory.user_id == patient_id,
+                MedicationHistory.medicine_id == m.id,
+                MedicationHistory.time_of_day == sched.time_of_day,
+                MedicationHistory.scheduled_date == today
+            ).first()
+
+            if logged:
+                if logged.status == "Taken":
+                    completed_today.append(f"{m.name} ({sched.time_of_day})")
+                elif logged.status == "Missed":
+                    missed_today.append(f"{m.name} ({sched.time_of_day})")
+            else:
+                # Classify based on time of day
+                slot_hour = 8 if sched.time_of_day == "Morning" else 14 if sched.time_of_day == "Afternoon" else 20
+                if slot_hour < current_hour:
+                    pending_today.append(f"{m.name} ({sched.time_of_day})")
+                else:
+                    upcoming_today.append(f"{m.name} ({sched.time_of_day})")
     
     # 7. Notifications preference & Email configuration audit
     notif_settings = db.query(NotificationSetting).filter(NotificationSetting.user_id == patient_id).first()
     browser_enabled = notif_settings.browser_notifications if notif_settings else True
     email_status = "Enabled" if (notif_settings and notif_settings.email_enabled) else "Disabled"
+    last_reminder = notif_settings.last_email_sent.strftime("%Y-%m-%d %H:%M:%S") if (notif_settings and notif_settings.last_email_sent) else "Never"
 
     return {
         "patient": {
@@ -230,7 +274,8 @@ def get_patient_history_details(patient_id: int, db: Session = Depends(get_db), 
             "address": p.address,
             "emergency_contact": p.emergency_contact,
             "status": p.account_status,
-            "email": patient_user.email
+            "email": patient_user.email,
+            "profile_photo": getattr(p, "profile_photo", None)
         },
         "medicines": medicine_list,
         "history": logs_list,
@@ -241,12 +286,16 @@ def get_patient_history_details(patient_id: int, db: Session = Depends(get_db), 
             "completion_rate": round(completion_rate, 2)
         },
         "today_summary": {
+            "today_medicines": today_medicines,
             "completed": completed_today,
-            "missed": missed_today
+            "pending": pending_today,
+            "missed": missed_today,
+            "upcoming": upcoming_today
         },
         "notifications": {
             "browser_notifications": "Enabled" if browser_enabled else "Disabled",
-            "email_reminder_status": email_status
+            "email_reminder_status": email_status,
+            "last_reminder_sent": last_reminder
         }
     }
 

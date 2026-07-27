@@ -24,7 +24,6 @@ const getLinks = (role) => {
       return [
         { path: "/caregiver-dashboard", label: "Dashboard",  icon: <LayoutDashboard size={18} /> },
         { path: "/profile",             label: "My Profile", icon: <User size={18} /> },
-        { path: "/assigned-history",    label: "Assigned Patient History", icon: <Clock size={18} /> },
       ];
     default:
       return [];

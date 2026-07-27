@@ -17,7 +17,6 @@ import NotFound from "./pages/NotFound";
 import About from "./pages/About";
 import Features from "./pages/Features";
 import Contact from "./pages/Contact";
-import AssignedPatientHistory from "./pages/AssignedPatientHistory";
 
 // Page transition variants (Lightweight snappy transitions)
 const pageVariants = {
@@ -201,14 +200,6 @@ const AnimatedRoutes = ({ auth, setAuth, darkMode, setDarkMode, loading, setLoad
             element={
               <ProtectedRoute auth={auth} allowedRoles={["caregiver"]}>
                 <CaregiverDashboard {...dashboardProps} />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/assigned-history"
-            element={
-              <ProtectedRoute auth={auth} allowedRoles={["caregiver"]}>
-                <AssignedPatientHistory {...dashboardProps} />
               </ProtectedRoute>
             }
           />
