@@ -12,12 +12,16 @@ load_dotenv()
 
 logger = logging.getLogger("pillsync.gemini_service")
 
-# Import official Google Gen AI SDK
+SDK_VERSION = "2.14.0"
 GENAI_SDK_AVAILABLE = False
+
 try:
     from google import genai
+    from google.genai import errors as genai_errors
     GENAI_SDK_AVAILABLE = True
+    SDK_VERSION = getattr(genai, "__version__", "2.14.0")
 except ImportError:
+    genai_errors = None
     logger.warning("google-genai SDK not installed.")
 
 def preprocess_prescription_image_opencv(image_bytes: bytes) -> tuple:
@@ -75,12 +79,25 @@ class GeminiPrescriptionService:
     def __init__(self):
         self.api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
         self.client = None
+        self.available_models = []
+        self.sdk_version = SDK_VERSION
+
         if self.api_key and GENAI_SDK_AVAILABLE:
             try:
                 self.client = genai.Client(api_key=self.api_key)
-                logger.info("[GeminiService] Google GenAI client initialized successfully.")
+                logger.info(f"[GeminiService] Google GenAI client (SDK v{self.sdk_version}) initialized.")
+                self._discover_models()
             except Exception as e:
                 logger.error(f"[GeminiService] Failed to initialize Google GenAI client: {e}")
+
+    def _discover_models(self):
+        """Startup model discovery check listing all available vision models."""
+        try:
+            raw_models = [m.name for m in self.client.models.list() if hasattr(m, "supported_actions") and "generateContent" in m.supported_actions]
+            self.available_models = [m.replace("models/", "") for m in raw_models]
+            logger.info(f"[GeminiService] Discovered {len(self.available_models)} content-generation model(s). Top models: {self.available_models[:5]}")
+        except Exception as e:
+            logger.warning(f"[GeminiService] Model discovery check warning: {e}")
 
     def is_configured(self) -> bool:
         return bool(self.api_key and self.client)
@@ -90,12 +107,16 @@ class GeminiPrescriptionService:
         Directly send preprocessed prescription image to Google Gemini Vision API.
         Zero OCR, zero fallback extraction, zero hardcoded/dummy medicines.
         """
-        logger.info("[Prescription Recognition] Image uploaded, initiating OpenCV enhancement...")
+        logger.info(f"[GeminiService] Processing prescription image (SDK v{self.sdk_version})...")
         pil_img, _ = preprocess_prescription_image_opencv(image_bytes)
 
         if not self.is_configured():
             logger.error("[GeminiService] GOOGLE_API_KEY not configured or client uninitialized.")
-            return {"success": False, "medicines": [], "error": "API key missing or client uninitialized"}
+            return {
+                "success": False, 
+                "medicines": [], 
+                "error": "Invalid API Key: GOOGLE_API_KEY is not configured in backend/.env."
+            }
 
         prompt_text = (
             "You are an experienced pharmacist and prescription analysis assistant.\n\n"
@@ -142,19 +163,27 @@ class GeminiPrescriptionService:
             "Do not return explanations. Do not return markdown. Return JSON only."
         )
 
-        models_to_try = ["gemini-2.0-flash", "gemini-1.5-flash"]
-        last_err = None
+        # Verified active vision models for generateContent
+        models_to_try = [
+            "gemini-flash-latest",
+            "gemini-flash-lite-latest",
+            "gemini-2.0-flash",
+            "gemini-2.0-flash-lite"
+        ]
+
+        last_err_str = "Gemini Service Unavailable"
 
         for model_name in models_to_try:
             try:
-                logger.info(f"[Prescription Recognition] Sending image directly to Google Gemini Vision API ({model_name})...")
+                logger.info(f"[GeminiService] API Request -> Model: {model_name} (SDK v{self.sdk_version})...")
                 response = self.client.models.generate_content(
                     model=model_name,
                     contents=[pil_img, prompt_text]
                 )
 
-                logger.info(f"[Prescription Recognition] Gemini response received from {model_name}.")
                 txt = response.text.strip()
+                logger.info(f"[GeminiService] API Response Received -> Model: {model_name}, length={len(txt)} chars.")
+
                 if txt.startswith("```json"):
                     txt = txt[7:]
                 if txt.startswith("```"):
@@ -167,7 +196,7 @@ class GeminiPrescriptionService:
                 if not isinstance(medicines_list, list) and isinstance(parsed_data, list):
                     medicines_list = parsed_data
 
-                logger.info(f"[Prescription Recognition] Parsed {len(medicines_list)} medicine(s) from Gemini JSON output.")
+                logger.info(f"[GeminiService] Parsed JSON -> Extracted {len(medicines_list)} medicine(s).")
                 return {
                     "success": True,
                     "model_used": model_name,
@@ -176,13 +205,23 @@ class GeminiPrescriptionService:
                 }
 
             except Exception as e:
-                logger.warning(f"[Prescription Recognition] Model {model_name} call error: {e}")
-                last_err = e
+                err_text = str(e)
+                logger.warning(f"[GeminiService] Model {model_name} attempt error: {err_text}")
 
+                if "429" in err_text or "RESOURCE_EXHAUSTED" in err_text or "Quota exceeded" in err_text:
+                    last_err_str = "Rate Limit Exceeded: Google Gemini API quota limit reached. Please retry in a moment."
+                elif "401" in err_text or "403" in err_text or "API_KEY_INVALID" in err_text:
+                    last_err_str = "Invalid API Key: Google API key is invalid. Please check GOOGLE_API_KEY in backend/.env."
+                elif "404" in err_text or "NOT_FOUND" in err_text:
+                    last_err_str = f"Unsupported Model: Model '{model_name}' is unavailable for your API tier."
+                else:
+                    last_err_str = f"Gemini Request Failed: {err_text}"
+
+        logger.error(f"[GeminiService] All candidate model attempts failed. Final error: {last_err_str}")
         return {
             "success": False,
             "medicines": [],
-            "error": str(last_err)
+            "error": last_err_str
         }
 
 gemini_service = GeminiPrescriptionService()
