@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   LayoutDashboard, User, Bell, LogOut, Activity, Users,
-  Pill, Shield, Settings, ChevronRight, Clock, BarChart2, ShieldAlert,
+  Pill, Shield, Settings, ChevronRight, Clock, BarChart2, ShieldAlert, Sparkles,
 } from "lucide-react";
 import { authService } from "../services/api";
 
