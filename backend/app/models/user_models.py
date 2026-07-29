@@ -28,6 +28,8 @@ class User(Base):
     medication_histories = relationship("MedicationHistory", back_populates="user", cascade="all, delete-orphan")
     notification_setting = relationship("NotificationSetting", back_populates="user", uselist=False, cascade="all, delete-orphan")
     notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")
+    emergency_card = relationship("EmergencyCard", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    doctor_profile = relationship("DoctorProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
 
 
 

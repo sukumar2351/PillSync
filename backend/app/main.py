@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 from app.database import engine, Base, SessionLocal
 from app.models.user_models import Role, User, NotificationSetting
 from app.utils.security import get_password_hash
-from app.routers import auth_router, users_router, admin_router, medicines_router, notifications_router
+from app.routers import auth_router, users_router, admin_router, medicines_router, notifications_router, medicine_master_router
 
 
 
@@ -313,6 +313,10 @@ async def lifespan(app: FastAPI):
 
         seed_sample_data(db)
 
+        # Seed medicine master + drug interactions
+        from app.seed_medicine_master import seed_medicine_master_data
+        seed_medicine_master_data(db)
+
     except Exception as e:
         db.rollback()
         app_logger.error(f"Database seeding failed: {e}")
@@ -439,6 +443,7 @@ app.include_router(medicines_router, prefix="/api")
 app.include_router(notifications_router, prefix="/api")
 app.include_router(caregiver_router, prefix="/api")
 app.include_router(caregiver_singular_router, prefix="/api")
+app.include_router(medicine_master_router, prefix="/api")
 
 
 
@@ -446,7 +451,7 @@ app.include_router(caregiver_singular_router, prefix="/api")
 def read_root():
     return {
         "project": "PillSync",
-        "milestone": 2,
+        "milestone": 3,
         "status": "online",
         "documentation": "/docs"
     }
