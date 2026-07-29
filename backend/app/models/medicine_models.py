@@ -62,3 +62,18 @@ class DoctorProfile(Base):
     created_at = Column(DateTime, default=func.now())
 
     user = relationship("User", back_populates="doctor_profile")
+
+class OCRRecord(Base):
+    __tablename__ = "ocr_records"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    filename = Column(String(255), nullable=False)
+    file_type = Column(String(50), nullable=False)
+    file_size_bytes = Column(Integer, default=0)
+    ocr_status = Column(String(50), default="Success")  # Success, Partial, Failed
+    raw_text = Column(Text, nullable=True)
+    medicines_count = Column(Integer, default=0)
+    created_at = Column(DateTime, default=func.now())
+
+    user = relationship("User", back_populates="ocr_records")

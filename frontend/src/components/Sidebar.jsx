@@ -18,6 +18,7 @@ const getLinks = (role) => {
     case "patient":
       return [
         { path: "/patient-dashboard",     label: "Dashboard",              icon: <LayoutDashboard size={18} /> },
+        { path: "/ocr-history",           label: "Prescription OCR",       icon: <Sparkles size={18} /> },
         { path: "/reports",               label: "Reports & Analytics",    icon: <BarChart2 size={18} /> },
         { path: "/notifications-center",  label: "Notification Center",   icon: <Bell size={18} /> },
         { path: "/emergency-card",        label: "Emergency Medical Card", icon: <ShieldAlert size={18} /> },

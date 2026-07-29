@@ -30,6 +30,7 @@ class User(Base):
     notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")
     emergency_card = relationship("EmergencyCard", back_populates="user", uselist=False, cascade="all, delete-orphan")
     doctor_profile = relationship("DoctorProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    ocr_records = relationship("OCRRecord", back_populates="user", cascade="all, delete-orphan")
 
 
 

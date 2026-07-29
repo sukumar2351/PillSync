@@ -246,12 +246,37 @@ export const medicineMasterService = {
 };
 
 export const ocrService = {
-  uploadPrescription: async (file) => {
+  uploadFile: async (file) => {
     const formData = new FormData();
     formData.append("file", file);
     const response = await api.post("/ocr/upload", formData, {
       headers: { "Content-Type": "multipart/form-data" }
     });
+    return response.data;
+  },
+  extractPrescription: async (recordId = null, file = null) => {
+    if (file) {
+      const formData = new FormData();
+      formData.append("file", file);
+      const response = await api.post("/ocr/extract", formData, {
+        headers: { "Content-Type": "multipart/form-data" }
+      });
+      return response.data;
+    }
+    const url = recordId ? `/ocr/extract?record_id=${recordId}` : "/ocr/extract";
+    const response = await api.post(url);
+    return response.data;
+  },
+  saveMedicines: async (medicinesList) => {
+    const response = await api.post("/ocr/save-medicines", { medicines: medicinesList });
+    return response.data;
+  },
+  getHistory: async () => {
+    const response = await api.get("/ocr/history");
+    return response.data;
+  },
+  getRecordDetail: async (id) => {
+    const response = await api.get(`/ocr/history/${id}`);
     return response.data;
   },
 };

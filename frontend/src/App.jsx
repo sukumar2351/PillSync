@@ -16,6 +16,7 @@ import NotificationSettings from "./pages/NotificationSettings";
 import Reports from "./pages/Reports";
 import NotificationCenter from "./pages/NotificationCenter";
 import EmergencyCard from "./pages/EmergencyCard";
+import OCRHistory from "./pages/OCRHistory";
 import NotFound from "./pages/NotFound";
 import About from "./pages/About";
 import Features from "./pages/Features";
@@ -250,6 +251,15 @@ const AnimatedRoutes = ({ auth, setAuth, darkMode, setDarkMode, loading, setLoad
             element={
               <ProtectedRoute auth={auth}>
                 <EmergencyCard {...dashboardProps} />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/ocr-history"
+            element={
+              <ProtectedRoute auth={auth}>
+                <OCRHistory {...dashboardProps} />
               </ProtectedRoute>
             }
           />
