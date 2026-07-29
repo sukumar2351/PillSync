@@ -254,16 +254,17 @@ export const ocrService = {
     });
     return response.data;
   },
-  extractPrescription: async (recordId = null, file = null) => {
+  extractPrescription: async (savedPath = null, file = null) => {
     if (file) {
       const formData = new FormData();
       formData.append("file", file);
-      const response = await api.post("/ocr/extract", formData, {
+      const url = savedPath ? `/ocr/extract?saved_path=${encodeURIComponent(savedPath)}` : "/ocr/extract";
+      const response = await api.post(url, formData, {
         headers: { "Content-Type": "multipart/form-data" }
       });
       return response.data;
     }
-    const url = recordId ? `/ocr/extract?record_id=${recordId}` : "/ocr/extract";
+    const url = savedPath ? `/ocr/extract?saved_path=${encodeURIComponent(savedPath)}` : "/ocr/extract";
     const response = await api.post(url);
     return response.data;
   },

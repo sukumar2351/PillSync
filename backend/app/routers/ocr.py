@@ -1,9 +1,11 @@
 import re
 import os
+import io
 import json
 import logging
+import mimetypes
 from datetime import date, datetime, timedelta
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Query
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
@@ -109,7 +111,7 @@ async def upload_prescription_ocr(
     Does NOT create any history record in PostgreSQL database until user clicks Save.
     """
     if not file or not file.filename:
-        raise HTTPException(status_code=400, detail="Empty file or missing filename.")
+        raise HTTPException(status_code=400, detail="Uploaded file is missing a valid filename.")
 
     ext = file.filename.split(".")[-1].lower()
     if ext not in ["jpg", "jpeg", "png", "pdf"]:
@@ -131,53 +133,70 @@ async def upload_prescription_ocr(
     with open(saved_path, "wb") as f:
         f.write(contents)
 
-    logger.info(f"[Prescription Recognition] Temporary upload saved: {file.filename} ({file_size} bytes). No DB record created yet.")
+    mime_type, _ = mimetypes.guess_type(file.filename)
+    if not mime_type:
+        mime_type = "application/pdf" if ext == "pdf" else f"image/{ext}"
+
+    logger.info(f"[Prescription Recognition] Temporary file saved: filename={file.filename}, size={file_size} bytes, mime={mime_type}, path={safe_filename}")
     return {
         "filename": file.filename,
         "saved_path": safe_filename,
         "file_type": ext.upper(),
+        "mime_type": mime_type,
         "file_size_bytes": file_size,
-        "message": "File uploaded temporarily."
+        "message": "File uploaded successfully."
     }
 
 @router.post("/extract")
 async def extract_prescription(
     file: Optional[UploadFile] = File(None),
-    saved_path: Optional[str] = None,
+    saved_path: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(auth_required)
 ):
     """
     Direct Google Gemini Vision API Prescription Analysis & RapidFuzz Master Validation.
+    Receives file bytes directly via UploadFile or saved_path parameter.
     Does NOT create any history record in PostgreSQL database until user clicks Save.
     """
     contents = None
     filename = "prescription.jpg"
+    mime_type = "image/jpeg"
 
-    if file:
+    if file and file.filename:
         contents = await file.read()
         filename = file.filename
+        ext = filename.split(".")[-1].lower()
+        mime_type = file.content_type or mimetypes.guess_type(filename)[0] or f"image/{ext}"
+        logger.info(f"[Prescription Recognition] Received direct UploadFile: filename={filename}, size={len(contents)} bytes, content_type={mime_type}")
     elif saved_path:
         path = os.path.join(UPLOAD_DIR, saved_path)
         if os.path.exists(path):
             with open(path, "rb") as f:
                 contents = f.read()
             filename = saved_path.split("_", 2)[-1] if "_" in saved_path else saved_path
+            ext = filename.split(".")[-1].lower()
+            mime_type = mimetypes.guess_type(filename)[0] or f"image/{ext}"
+            logger.info(f"[Prescription Recognition] Loaded temporary file from disk: path={saved_path}, size={len(contents)} bytes, mime_type={mime_type}")
+        else:
+            logger.error(f"[Prescription Recognition] File not found on server disk: {path}")
+            raise HTTPException(status_code=404, detail=f"Prescription file not found on server at '{saved_path}'.")
 
-    if not contents:
-        raise HTTPException(status_code=400, detail="Could not read prescription image data.")
+    if not contents or len(contents) == 0:
+        logger.error("[Prescription Recognition] Uploaded image buffer is empty (0 bytes).")
+        raise HTTPException(status_code=400, detail="Uploaded prescription file is empty (0 bytes).")
 
-    # Direct Gemini Vision Request
-    logger.info("[Prescription Recognition] Sending prescription image directly to Google Gemini Vision API...")
+    # Direct Gemini Vision API Analysis
+    logger.info(f"[Prescription Recognition] Initiating Google Gemini Vision API analysis for '{filename}' ({len(contents)} bytes, {mime_type})...")
     gemini_res = await gemini_service.analyze_prescription_direct(contents)
 
     if not gemini_res.get("success") or not gemini_res.get("medicines"):
-        err_msg = gemini_res.get("error") or "No medicines could be confidently extracted."
-        logger.error(f"[Prescription Recognition] Extraction failed: {err_msg}")
-        raise HTTPException(status_code=422, detail="No medicines could be confidently extracted.")
+        err_detail = gemini_res.get("error") or "No medicines could be confidently extracted."
+        logger.error(f"[Prescription Recognition] Gemini Vision recognition failed: {err_detail}")
+        raise HTTPException(status_code=422, detail=f"Gemini Vision recognition failed: {err_detail}")
 
     gemini_medicines = gemini_res["medicines"]
-    logger.info(f"[Prescription Recognition] Parsed JSON from Gemini: {json.dumps(gemini_medicines)}")
+    logger.info(f"[Prescription Recognition] Successfully parsed {len(gemini_medicines)} medicine(s) from Gemini JSON output.")
 
     master_meds = db.query(MedicineMaster).filter(MedicineMaster.approval_status == "Approved").all()
     validated_medicines = []
@@ -217,16 +236,17 @@ async def extract_prescription(
             "confidence": conf
         })
 
-    logger.info(f"[Prescription Recognition] Medicines extracted: {len(validated_medicines)} item(s). No DB record created yet.")
+    logger.info(f"[Prescription Recognition] RapidFuzz validation complete. Returning {len(validated_medicines)} item(s) to review screen.")
 
     if not validated_medicines:
         raise HTTPException(
             status_code=422,
-            detail="No medicines could be confidently extracted."
+            detail="No medicines could be confidently extracted from prescription image."
         )
 
     return {
         "filename": filename,
+        "mime_type": mime_type,
         "ocr_status": "Google Gemini Vision Direct",
         "extracted_count": len(validated_medicines),
         "medicines": validated_medicines

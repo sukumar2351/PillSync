@@ -82,15 +82,15 @@ const PrescriptionUploadModal = ({ isOpen, onClose, onMedicinesSaved }) => {
       setUploadedRecord(uploadRes);
       setProgress(60);
 
-      // Extract Step
-      const extractRes = await ocrService.extractPrescription(uploadRes.record_id);
+      // Extract Step - pass both saved_path and original file
+      const extractRes = await ocrService.extractPrescription(uploadRes?.saved_path, file);
       setProgress(100);
 
       setExtractedData(extractRes.medicines || []);
       setRawOcrText(extractRes.raw_text || "");
       setStep("review");
     } catch (err) {
-      setError(err.response?.data?.detail || "Failed to process prescription OCR.");
+      setError(err.response?.data?.detail || "Failed to process prescription image.");
       setStep("upload");
     }
   };
