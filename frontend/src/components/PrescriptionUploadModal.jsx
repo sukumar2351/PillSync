@@ -369,11 +369,13 @@ const PrescriptionUploadModal = ({ isOpen, onClose, onMedicinesSaved }) => {
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.82rem", textAlign: "left" }}>
                   <thead>
                     <tr style={{ background: "#F8FAFC", borderBottom: "1px solid #E2E8F0", color: "#475569" }}>
-                      <th style={{ padding: "0.75rem" }}>Medicine Name</th>
+                      <th style={{ padding: "0.75rem" }}>Medicine</th>
                       <th style={{ padding: "0.75rem" }}>Strength</th>
                       <th style={{ padding: "0.75rem" }}>Dosage</th>
                       <th style={{ padding: "0.75rem" }}>Frequency</th>
                       <th style={{ padding: "0.75rem" }}>Duration</th>
+                      <th style={{ padding: "0.75rem" }}>Timing</th>
+                      <th style={{ padding: "0.75rem" }}>Food</th>
                       <th style={{ padding: "0.75rem" }}>Matched Medicine</th>
                       <th style={{ padding: "0.75rem" }}>Status</th>
                       <th style={{ padding: "0.75rem" }}>Confidence</th>
@@ -387,7 +389,7 @@ const PrescriptionUploadModal = ({ isOpen, onClose, onMedicinesSaved }) => {
                           <input
                             type="text"
                             className="form-control"
-                            value={item.name}
+                            value={item.name || item.medicine_name}
                             onChange={(e) => handleTableEdit(idx, "name", e.target.value)}
                             style={{ fontSize: "0.82rem", padding: "0.3rem 0.5rem" }}
                             placeholder="Medicine Name"
@@ -399,22 +401,22 @@ const PrescriptionUploadModal = ({ isOpen, onClose, onMedicinesSaved }) => {
                             className="form-control"
                             value={item.strength || "500 mg"}
                             onChange={(e) => handleTableEdit(idx, "strength", e.target.value)}
-                            style={{ fontSize: "0.82rem", padding: "0.3rem 0.5rem", width: "80px" }}
+                            style={{ fontSize: "0.82rem", padding: "0.3rem 0.5rem", width: "75px" }}
                           />
                         </td>
                         <td style={{ padding: "0.4rem" }}>
                           <input
                             type="text"
                             className="form-control"
-                            value={item.dosage}
+                            value={item.dosage || "1 Tablet"}
                             onChange={(e) => handleTableEdit(idx, "dosage", e.target.value)}
-                            style={{ fontSize: "0.82rem", padding: "0.3rem 0.5rem", width: "95px" }}
+                            style={{ fontSize: "0.82rem", padding: "0.3rem 0.5rem", width: "85px" }}
                           />
                         </td>
                         <td style={{ padding: "0.4rem" }}>
                           <select
                             className="form-control"
-                            value={item.frequency}
+                            value={item.frequency || "Once Daily"}
                             onChange={(e) => handleTableEdit(idx, "frequency", e.target.value)}
                             style={{ fontSize: "0.82rem", padding: "0.3rem 0.5rem" }}
                           >
@@ -429,10 +431,30 @@ const PrescriptionUploadModal = ({ isOpen, onClose, onMedicinesSaved }) => {
                           <input
                             type="text"
                             className="form-control"
-                            value={item.duration}
+                            value={item.duration || "7 Days"}
                             onChange={(e) => handleTableEdit(idx, "duration", e.target.value)}
-                            style={{ fontSize: "0.82rem", padding: "0.3rem 0.5rem", width: "75px" }}
+                            style={{ fontSize: "0.82rem", padding: "0.3rem 0.5rem", width: "70px" }}
                           />
+                        </td>
+                        <td style={{ padding: "0.4rem" }}>
+                          <input
+                            type="text"
+                            className="form-control"
+                            value={item.timing || "Morning, Night"}
+                            onChange={(e) => handleTableEdit(idx, "timing", e.target.value)}
+                            style={{ fontSize: "0.82rem", padding: "0.3rem 0.5rem", width: "95px" }}
+                          />
+                        </td>
+                        <td style={{ padding: "0.4rem" }}>
+                          <select
+                            className="form-control"
+                            value={item.food || "After Food"}
+                            onChange={(e) => handleTableEdit(idx, "food", e.target.value)}
+                            style={{ fontSize: "0.82rem", padding: "0.3rem 0.5rem" }}
+                          >
+                            <option value="After Food">After Food</option>
+                            <option value="Before Food">Before Food</option>
+                          </select>
                         </td>
                         <td style={{ padding: "0.4rem", color: "#475569", fontWeight: 600 }}>
                           {item.matched_medicine || (item.is_matched ? item.name : "N/A")}
@@ -448,11 +470,11 @@ const PrescriptionUploadModal = ({ isOpen, onClose, onMedicinesSaved }) => {
                               color: item.status === "Auto-Corrected" ? "#15803D" : (item.is_matched ? "#0369A1" : "#B45309")
                             }}
                           >
-                            {item.status || (item.is_matched ? "Matched" : "Needs Review")}
+                            {item.status || "Needs Review"}
                           </span>
                         </td>
                         <td style={{ padding: "0.4rem" }}>
-                          <span style={{ fontWeight: 800, color: item.confidence >= 80 ? "#166534" : "#D97706", fontSize: "0.8rem" }}>
+                          <span style={{ fontWeight: 800, color: (item.confidence || 90) >= 80 ? "#166534" : "#D97706", fontSize: "0.8rem" }}>
                             {item.confidence || 90}%
                           </span>
                         </td>
