@@ -183,7 +183,7 @@ async def extract_prescription(
 ):
     """
     Direct Google Gemini Vision API Prescription Analysis & RapidFuzz Validation.
-    No traditional OCR engine (Tesseract/PaddleOCR) is used.
+    No traditional OCR engine is used.
     """
     contents = None
     filename = "prescription"

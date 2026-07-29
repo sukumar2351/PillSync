@@ -199,7 +199,7 @@ const PrescriptionUploadModal = ({ isOpen, onClose, onMedicinesSaved }) => {
         >
           <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
             <Sparkles size={20} color="#60A5FA" />
-            <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 800 }}>Prescription OCR Module</h3>
+            <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 800 }}>Prescription Recognition (Google Gemini Vision)</h3>
           </div>
           <button
             onClick={onClose}
@@ -343,7 +343,7 @@ const PrescriptionUploadModal = ({ isOpen, onClose, onMedicinesSaved }) => {
                     Extracted Prescription Items ({extractedData.length})
                   </h4>
                   <span style={{ fontSize: "0.8rem", color: "#64748B" }}>
-                    Multi-stage OCR extracted medication data matched against Medicine Master database.
+                    Direct Gemini Vision prescription recognition matched against Medicine Master database.
                   </span>
                 </div>
                 <button
@@ -357,10 +357,10 @@ const PrescriptionUploadModal = ({ isOpen, onClose, onMedicinesSaved }) => {
               </div>
 
               {/* Warning alert if low confidence items exist */}
-              {extractedData.some(item => item.warning_note || item.confidence < 65) && (
+              {extractedData.some(item => item.warning_note || item.confidence < 70) && (
                 <div style={{ background: "#FEF3C7", border: "1px solid #FDE68A", padding: "0.75rem 1rem", borderRadius: "12px", marginBottom: "1rem", color: "#92400E", fontSize: "0.83rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
                   <AlertCircle size={18} color="#D97706" />
-                  <span>We could not confidently identify all medicines. Please review and verify values manually before saving.</span>
+                  <span>Low confidence or unmatched items detected. Please review and verify values manually before saving.</span>
                 </div>
               )}
 
@@ -370,6 +370,7 @@ const PrescriptionUploadModal = ({ isOpen, onClose, onMedicinesSaved }) => {
                   <thead>
                     <tr style={{ background: "#F8FAFC", borderBottom: "1px solid #E2E8F0", color: "#475569" }}>
                       <th style={{ padding: "0.75rem" }}>Medicine</th>
+                      <th style={{ padding: "0.75rem" }}>Generic Name</th>
                       <th style={{ padding: "0.75rem" }}>Strength</th>
                       <th style={{ padding: "0.75rem" }}>Dosage</th>
                       <th style={{ padding: "0.75rem" }}>Frequency</th>
@@ -393,6 +394,16 @@ const PrescriptionUploadModal = ({ isOpen, onClose, onMedicinesSaved }) => {
                             onChange={(e) => handleTableEdit(idx, "name", e.target.value)}
                             style={{ fontSize: "0.82rem", padding: "0.3rem 0.5rem" }}
                             placeholder="Medicine Name"
+                          />
+                        </td>
+                        <td style={{ padding: "0.4rem" }}>
+                          <input
+                            type="text"
+                            className="form-control"
+                            value={item.generic_name || ""}
+                            onChange={(e) => handleTableEdit(idx, "generic_name", e.target.value)}
+                            style={{ fontSize: "0.82rem", padding: "0.3rem 0.5rem" }}
+                            placeholder="Generic Name"
                           />
                         </td>
                         <td style={{ padding: "0.4rem" }}>
