@@ -6,9 +6,12 @@ import {
   AlertTriangle, Clock, CheckCircle2, ArrowUpDown, Sparkles,
   TrendingUp, User, History, Zap, Sliders, ChevronRight, Heart, Mail, CheckCircle
 } from "lucide-react";
-import { authService, medicineService } from "../services/api";
+import { authService, medicineService, drugInteractionService, insightsService } from "../services/api";
 import Sidebar from "../components/Sidebar";
 import Navbar from "../components/Navbar";
+import MedicineSearchInput from "../components/MedicineSearchInput";
+import PrescriptionUploadModal from "../components/PrescriptionUploadModal";
+import DrugInteractionModal from "../components/DrugInteractionModal";
 
 const PatientDashboard = ({ auth, setAuth }) => {
   const navigate = useNavigate();
@@ -40,6 +43,12 @@ const PatientDashboard = ({ auth, setAuth }) => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletingMed, setDeletingMed] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // M3 Modals & Insights States
+  const [showOcrModal, setShowOcrModal] = useState(false);
+  const [interactionWarnings, setInteractionWarnings] = useState([]);
+  const [pendingSavePayload, setPendingSavePayload] = useState(null);
+  const [healthInsights, setHealthInsights] = useState(null);
 
   // Form Fields
   const [medName, setMedName] = useState("");
@@ -74,6 +83,13 @@ const PatientDashboard = ({ auth, setAuth }) => {
 
       const notifs = await medicineService.getNotificationSettings();
       setNotifSettings(notifs);
+
+      try {
+        const insightsRes = await insightsService.getInsights();
+        setHealthInsights(insightsRes);
+      } catch (e) {
+        console.error("Insights fetch failed:", e);
+      }
     } catch (err) {
       setErrorMsg("Failed to load patient dashboard modules.");
     } finally {
@@ -276,22 +292,40 @@ const PatientDashboard = ({ auth, setAuth }) => {
     e.preventDefault();
     if (!validateReminderTimes()) return;
 
-    try {
-      const payload = {
-        name: medName,
-        dosage: medDosage,
-        quantity: parseInt(medQuantity, 10),
-        frequency: medFrequency,
-        food_relation: medFood,
-        start_date: medStart,
-        end_date: medEnd,
-        notes: medNotes || null,
-        reminder_times: medReminderTimes
-      };
+    const payload = {
+      name: medName,
+      dosage: medDosage,
+      quantity: parseInt(medQuantity, 10),
+      frequency: medFrequency,
+      food_relation: medFood,
+      start_date: medStart,
+      end_date: medEnd,
+      notes: medNotes || null,
+      reminder_times: medReminderTimes
+    };
 
+    // Module 4: Check for drug interactions before saving
+    try {
+      const warnings = await drugInteractionService.checkInteractions(medName);
+      if (warnings && warnings.length > 0) {
+        setInteractionWarnings(warnings);
+        setPendingSavePayload(payload);
+        return; // Pause and show DrugInteractionModal
+      }
+    } catch (e) {
+      console.error("Interaction check skipped:", e);
+    }
+
+    executeSaveMedicine(payload);
+  };
+
+  const executeSaveMedicine = async (payload) => {
+    try {
       await medicineService.addMedicine(payload);
       setSuccessMsg("Medicine added successfully!");
       setShowAddModal(false);
+      setInteractionWarnings([]);
+      setPendingSavePayload(null);
       resetForm();
       fetchData();
     } catch (err) {
@@ -1489,13 +1523,32 @@ const PatientDashboard = ({ auth, setAuth }) => {
           <div className="card modal-content" style={{ width: "520px", padding: "2rem", maxHeight: "90vh", overflowY: "auto", borderRadius: "20px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem" }}>
               <h3 className="card-title" style={{ margin: 0, fontSize: "1.25rem", fontWeight: 800 }}>Add New Medicine</h3>
-              <X size={20} style={{ cursor: "pointer", color: "#64748B" }} onClick={() => setShowAddModal(false)} />
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <button
+                  type="button"
+                  onClick={() => setShowOcrModal(true)}
+                  className="btn btn-secondary"
+                  style={{ fontSize: "0.75rem", padding: "0.3rem 0.6rem" }}
+                >
+                  <Sparkles size={14} style={{ marginRight: "0.25rem" }} /> Scan OCR
+                </button>
+                <X size={20} style={{ cursor: "pointer", color: "#64748B" }} onClick={() => setShowAddModal(false)} />
+              </div>
             </div>
 
             <form onSubmit={handleAddMedicine}>
               <div className="form-group" style={{ marginBottom: "1rem" }}>
-                <label className="form-label">Medicine Name</label>
-                <input type="text" className="form-input" required value={medName} onChange={(e) => setMedName(e.target.value)} placeholder="e.g. Paracetamol" />
+                <label className="form-label">Medicine Name (Validated Master Database)</label>
+                <MedicineSearchInput
+                  value={medName}
+                  onChange={(val) => setMedName(val)}
+                  onSelectMedicine={(item) => {
+                    setMedName(item.name);
+                    if (item.strength && item.unit) {
+                      setMedDosage(`${item.strength}${item.unit}`);
+                    }
+                  }}
+                />
               </div>
               <div className="form-group" style={{ marginBottom: "1rem" }}>
                 <label className="form-label">Dosage</label>
@@ -1712,6 +1765,36 @@ const PatientDashboard = ({ auth, setAuth }) => {
             </form>
           </div>
         </div>
+      )}
+
+      {/* Module 3 OCR Prescription Upload Modal */}
+      <PrescriptionUploadModal
+        isOpen={showOcrModal}
+        onClose={() => setShowOcrModal(false)}
+        onExtractedMedicines={(extracted) => {
+          setMedName(extracted.name);
+          setMedDosage(extracted.dosage);
+          if (extracted.frequency) {
+            setMedFrequency(extracted.frequency);
+          }
+          setShowAddModal(true);
+        }}
+      />
+
+      {/* Module 4 Drug Interaction Warning Modal */}
+      {interactionWarnings.length > 0 && (
+        <DrugInteractionModal
+          interactions={interactionWarnings}
+          onConfirm={() => {
+            if (pendingSavePayload) {
+              executeSaveMedicine(pendingSavePayload);
+            }
+          }}
+          onCancel={() => {
+            setInteractionWarnings([]);
+            setPendingSavePayload(null);
+          }}
+        />
       )}
     </div>
   );

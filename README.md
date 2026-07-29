@@ -1,6 +1,6 @@
 # PillSync – Intelligent Medicine Reminder and Medication Tracking Platform
 
-PillSync is a healthcare management system designed to reduce medication non-adherence by connecting patients, caregivers, and administration. This repository contains the complete implementation for **Milestone 2** of the PillSync platform, building on the foundational architecture of Milestone 1 to integrate full medication lifecycle management, scheduling, notification settings, medication history logging, and real-time reminders.
+PillSync is an Intelligent Healthcare Management Platform designed to reduce medication non-adherence by connecting patients, caregivers, doctors, and administration. This repository contains the complete implementation for **Milestone 3** of the PillSync platform, featuring AI & Intelligent Medication Management, Medicine Master Database, Smart Validation, Prescription OCR, Drug Interaction Checker, Refill Prediction, Adherence Analytics, Smart Notification Center, Emergency Medical ID Cards, and Health Insights.
 
 ---
 

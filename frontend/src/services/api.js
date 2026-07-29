@@ -218,5 +218,88 @@ export const caregiverService = {
   },
 };
 
+export const medicineMasterService = {
+  search: async (query) => {
+    const response = await api.get(`/medicine-master/search?q=${encodeURIComponent(query)}`);
+    return response.data;
+  },
+  getApproved: async () => {
+    const response = await api.get("/medicine-master/");
+    return response.data;
+  },
+  getPending: async () => {
+    const response = await api.get("/medicine-master/pending");
+    return response.data;
+  },
+  requestMedicine: async (data) => {
+    const response = await api.post("/medicine-master/request", data);
+    return response.data;
+  },
+  approveMedicine: async (id) => {
+    const response = await api.put(`/medicine-master/${id}/approve`);
+    return response.data;
+  },
+  createDirect: async (data) => {
+    const response = await api.post("/medicine-master/", data);
+    return response.data;
+  },
+};
+
+export const ocrService = {
+  uploadPrescription: async (file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    const response = await api.post("/ocr/upload", formData, {
+      headers: { "Content-Type": "multipart/form-data" }
+    });
+    return response.data;
+  },
+};
+
+export const drugInteractionService = {
+  checkInteractions: async (medicineName) => {
+    const response = await api.post("/drug-interactions/check", { medicine_name: medicineName });
+    return response.data;
+  },
+};
+
+export const reportsService = {
+  getSummary: async (patientId = null) => {
+    const url = patientId ? `/reports/summary?patient_id=${patientId}` : "/reports/summary";
+    const response = await api.get(url);
+    return response.data;
+  },
+  getDailyAdherence: async (days = 30, patientId = null) => {
+    const url = patientId ? `/reports/adherence/daily?days=${days}&patient_id=${patientId}` : `/reports/adherence/daily?days=${days}`;
+    const response = await api.get(url);
+    return response.data;
+  },
+  getWeeklyAdherence: async (weeks = 12, patientId = null) => {
+    const url = patientId ? `/reports/adherence/weekly?weeks=${weeks}&patient_id=${patientId}` : `/reports/adherence/weekly?weeks=${weeks}`;
+    const response = await api.get(url);
+    return response.data;
+  },
+};
+
+export const emergencyCardService = {
+  getCard: async (patientId = null) => {
+    const url = patientId ? `/emergency-card/?patient_id=${patientId}` : "/emergency-card/";
+    const response = await api.get(url);
+    return response.data;
+  },
+  updateCard: async (data) => {
+    const response = await api.post("/emergency-card/", data);
+    return response.data;
+  },
+};
+
+export const insightsService = {
+  getInsights: async (patientId = null) => {
+    const url = patientId ? `/insights/?patient_id=${patientId}` : "/insights/";
+    const response = await api.get(url);
+    return response.data;
+  },
+};
+
 export default api;
 

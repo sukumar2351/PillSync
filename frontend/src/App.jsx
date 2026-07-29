@@ -13,6 +13,9 @@ import CaregiverDashboard from "./pages/CaregiverDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
 import Profile from "./pages/Profile";
 import NotificationSettings from "./pages/NotificationSettings";
+import Reports from "./pages/Reports";
+import NotificationCenter from "./pages/NotificationCenter";
+import EmergencyCard from "./pages/EmergencyCard";
 import NotFound from "./pages/NotFound";
 import About from "./pages/About";
 import Features from "./pages/Features";
@@ -220,6 +223,33 @@ const AnimatedRoutes = ({ auth, setAuth, darkMode, setDarkMode, loading, setLoad
             element={
               <ProtectedRoute auth={auth}>
                 <Profile {...dashboardProps} />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/reports"
+            element={
+              <ProtectedRoute auth={auth}>
+                <Reports {...dashboardProps} />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/notifications-center"
+            element={
+              <ProtectedRoute auth={auth}>
+                <NotificationCenter {...dashboardProps} />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/emergency-card"
+            element={
+              <ProtectedRoute auth={auth}>
+                <EmergencyCard {...dashboardProps} />
               </ProtectedRoute>
             }
           />
