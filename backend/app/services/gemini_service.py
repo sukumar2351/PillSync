@@ -13,34 +13,32 @@ load_dotenv()
 logger = logging.getLogger("pillsync.gemini_service")
 
 # Import official Google Gen AI SDK
+GENAI_SDK_AVAILABLE = False
 try:
     from google import genai
     GENAI_SDK_AVAILABLE = True
 except ImportError:
-    GENAI_SDK_AVAILABLE = False
     logger.warning("google-genai SDK not installed.")
 
 def preprocess_prescription_image_opencv(image_bytes: bytes) -> tuple:
     """
-    OpenCV Preprocessing Pipeline:
+    OpenCV Preprocessing Pipeline (OpenCV only):
     1. Decode image bytes to NumPy array.
     2. Auto-rotate / EXIF deskew.
     3. Remove background noise using Gaussian Blur & Denoising.
     4. Improve contrast using CLAHE (Contrast Limited Adaptive Histogram Equalization).
-    5. Resize image if dimension > 1600px while maintaining aspect ratio.
+    5. Resize image if dimension > 1600px maintaining aspect ratio.
     """
     try:
-        # Convert bytes to numpy array for OpenCV processing
         np_arr = np.frombuffer(image_bytes, np.uint8)
         img_cv = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
 
         if img_cv is None:
-            # Fallback to PIL if OpenCV imdecode fails on non-standard format
             pil_fallback = Image.open(io.BytesIO(image_bytes))
             pil_fallback = ImageOps.exif_transpose(pil_fallback)
             img_cv = cv2.cvtColor(np.array(pil_fallback), cv2.COLOR_RGB2BGR)
 
-        # 1. Resize if image max dimension > 1600px
+        # 1. Resize if max dimension > 1600px
         h, w = img_cv.shape[:2]
         max_dim = 1600
         if max(h, w) > max_dim:
@@ -48,7 +46,7 @@ def preprocess_prescription_image_opencv(image_bytes: bytes) -> tuple:
             new_w, new_h = int(w * scale), int(h * scale)
             img_cv = cv2.resize(img_cv, (new_w, new_h), interpolation=cv2.INTER_AREA)
 
-        # 2. Convert to LAB color space for contrast enhancement (CLAHE)
+        # 2. Contrast enhancement via CLAHE
         lab = cv2.cvtColor(img_cv, cv2.COLOR_BGR2LAB)
         l_channel, a_channel, b_channel = cv2.split(lab)
 
@@ -58,17 +56,17 @@ def preprocess_prescription_image_opencv(image_bytes: bytes) -> tuple:
         limg = cv2.merge((cl, a_channel, b_channel))
         enhanced_cv = cv2.cvtColor(limg, cv2.COLOR_LAB2BGR)
 
-        # 3. Noise removal
+        # 3. Denoising
         denoised_cv = cv2.fastNlMeansDenoisingColored(enhanced_cv, None, 5, 5, 7, 21)
 
-        # Convert OpenCV BGR to RGB PIL Image for Gemini Vision API
+        # Convert OpenCV BGR image to RGB PIL Image
         img_rgb = cv2.cvtColor(denoised_cv, cv2.COLOR_BGR2RGB)
         pil_img = Image.fromarray(img_rgb)
 
         return pil_img, cv2.imencode(".jpg", denoised_cv)[1].tobytes()
 
     except Exception as e:
-        logger.error(f"[OpenCV Preprocessing] OpenCV pipeline warning: {e}. Using PIL fallback.")
+        logger.error(f"[OpenCV Preprocessing] Error: {e}. Falling back to basic ImageOps.")
         pil_img = Image.open(io.BytesIO(image_bytes))
         pil_img = ImageOps.exif_transpose(pil_img)
         return pil_img, image_bytes
@@ -90,7 +88,7 @@ class GeminiPrescriptionService:
     async def analyze_prescription_direct(self, image_bytes: bytes) -> dict:
         """
         Directly send preprocessed prescription image to Google Gemini Vision API.
-        No traditional OCR (Tesseract / EasyOCR / PaddleOCR) is used.
+        No traditional OCR engine is used.
         """
         # OpenCV Preprocessing
         pil_img, _ = preprocess_prescription_image_opencv(image_bytes)
@@ -100,7 +98,7 @@ class GeminiPrescriptionService:
             return {"success": False, "medicines": [], "error": "API key missing or client uninitialized"}
 
         prompt_text = (
-            "You are an experienced medical prescription analysis assistant.\n\n"
+            "You are an experienced clinical prescription analysis assistant.\n\n"
             "Analyze this prescription image directly.\n\n"
             "Do NOT perform generic OCR.\n\n"
             "Understand the medical prescription like a pharmacist.\n\n"
@@ -134,31 +132,46 @@ class GeminiPrescriptionService:
             "If uncertain, mark confidence below 70."
         )
 
-        try:
-            response = self.client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=[pil_img, prompt_text]
-            )
+        # Try gemini-2.0-flash first, then gemini-1.5-flash
+        models_to_try = ["gemini-2.0-flash", "gemini-1.5-flash"]
+        last_err = None
 
-            txt = response.text.strip()
-            if txt.startswith("```json"):
-                txt = txt[7:]
-            if txt.endswith("```"):
-                txt = txt[:-3]
+        for model_name in models_to_try:
+            try:
+                logger.info(f"[GeminiService] Sending image to model {model_name}...")
+                response = self.client.models.generate_content(
+                    model=model_name,
+                    contents=[pil_img, prompt_text]
+                )
 
-            parsed_data = json.loads(txt.strip())
-            return {
-                "success": True,
-                "medicines": parsed_data.get("medicines", []),
-                "raw_response": txt
-            }
+                txt = response.text.strip()
+                if txt.startswith("```json"):
+                    txt = txt[7:]
+                if txt.startswith("```"):
+                    txt = txt[3:]
+                if txt.endswith("```"):
+                    txt = txt[:-3]
 
-        except Exception as e:
-            logger.error(f"[GeminiService] Gemini direct vision recognition error: {e}")
-            return {
-                "success": False,
-                "medicines": [],
-                "error": str(e)
-            }
+                parsed_data = json.loads(txt.strip())
+                medicines_list = parsed_data.get("medicines", [])
+                if not isinstance(medicines_list, list) and isinstance(parsed_data, list):
+                    medicines_list = parsed_data
+
+                return {
+                    "success": True,
+                    "model_used": model_name,
+                    "medicines": medicines_list,
+                    "raw_response": txt
+                }
+
+            except Exception as e:
+                logger.warning(f"[GeminiService] Model {model_name} call error: {e}")
+                last_err = e
+
+        return {
+            "success": False,
+            "medicines": [],
+            "error": str(last_err)
+        }
 
 gemini_service = GeminiPrescriptionService()
