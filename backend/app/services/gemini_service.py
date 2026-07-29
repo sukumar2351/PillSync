@@ -25,8 +25,8 @@ def preprocess_prescription_image_opencv(image_bytes: bytes) -> tuple:
     OpenCV Preprocessing Pipeline (OpenCV only):
     1. Decode image bytes to NumPy array.
     2. Auto-rotate / EXIF deskew.
-    3. Remove background noise using Gaussian Blur & Denoising.
-    4. Improve contrast using CLAHE (Contrast Limited Adaptive Histogram Equalization).
+    3. Remove background noise using Denoising.
+    4. Improve contrast using CLAHE.
     5. Resize image if dimension > 1600px maintaining aspect ratio.
     """
     try:
@@ -88,62 +88,72 @@ class GeminiPrescriptionService:
     async def analyze_prescription_direct(self, image_bytes: bytes) -> dict:
         """
         Directly send preprocessed prescription image to Google Gemini Vision API.
-        No traditional OCR engine is used.
+        Zero OCR, zero fallback extraction, zero hardcoded/dummy medicines.
         """
-        # OpenCV Preprocessing
+        logger.info("[Prescription Recognition] Image uploaded, initiating OpenCV enhancement...")
         pil_img, _ = preprocess_prescription_image_opencv(image_bytes)
 
         if not self.is_configured():
-            logger.warning("[GeminiService] GOOGLE_API_KEY not configured or client uninitialized.")
+            logger.error("[GeminiService] GOOGLE_API_KEY not configured or client uninitialized.")
             return {"success": False, "medicines": [], "error": "API key missing or client uninitialized"}
 
         prompt_text = (
-            "You are an experienced clinical prescription analysis assistant.\n\n"
-            "Analyze this prescription image directly.\n\n"
-            "Do NOT perform generic OCR.\n\n"
-            "Understand the medical prescription like a pharmacist.\n\n"
+            "You are an experienced pharmacist and prescription analysis assistant.\n\n"
+            "Your job is to analyze the uploaded prescription IMAGE directly.\n\n"
+            "DO NOT perform generic OCR.\n\n"
+            "Understand the prescription exactly as a trained pharmacist would.\n\n"
+            "Never guess medicines.\n\n"
+            "If handwriting is unclear, return a lower confidence score.\n\n"
             "Ignore completely:\n"
             "• Doctor Name\n"
+            "• Doctor Qualification\n"
             "• Hospital Name\n"
+            "• Hospital Logo\n"
             "• Registration Number\n"
+            "• Patient Name\n"
+            "• Age\n"
+            "• Gender\n"
             "• Address\n"
             "• Phone Number\n"
-            "• Patient Name\n"
-            "• Patient Age\n"
-            "• Gender\n"
+            "• Email\n"
+            "• Website\n"
+            "• Date\n"
             "• Signature\n"
             "• Stamp\n"
-            "• Logos\n\n"
+            "• General Notes\n\n"
             "Extract ONLY medicines.\n\n"
-            "For every medicine return:\n"
-            "- Medicine Name\n"
-            "- Generic Name (if available)\n"
-            "- Strength\n"
-            "- Dosage\n"
-            "- Frequency\n"
-            "- Duration\n"
-            "- Before Food / After Food\n"
-            "- Timing\n"
-            "- Instructions\n"
-            "- Confidence Score\n\n"
+            "For every medicine identify:\n"
+            "• Medicine Name\n"
+            "• Brand Name\n"
+            "• Generic Name (if available)\n"
+            "• Strength\n"
+            "• Dosage\n"
+            "• Frequency\n"
+            "• Duration\n"
+            "• Morning (true/false)\n"
+            "• Afternoon (true/false)\n"
+            "• Night (true/false)\n"
+            "• Before Food\n"
+            "• After Food\n"
+            "• Special Instructions\n"
+            "• Confidence Score\n\n"
             "Return ONLY valid JSON.\n\n"
-            "Never return explanations.\n\n"
-            "Never guess medicine names.\n\n"
-            "If uncertain, mark confidence below 70."
+            'Example:\n{\n  "medicines": [\n    {\n      "medicine_name": "Augmentin",\n      "brand_name": "Augmentin",\n      "generic_name": "Amoxicillin + Clavulanic Acid",\n      "strength": "625 mg",\n      "dosage": "1 Tablet",\n      "frequency": "Twice Daily",\n      "duration": "5 Days",\n      "timing": "Morning, Night",\n      "food": "After Food",\n      "instructions": "Take after meals",\n      "confidence": 98\n    }\n  ]\n}\n\n'
+            "Do not return explanations. Do not return markdown. Return JSON only."
         )
 
-        # Try gemini-2.0-flash first, then gemini-1.5-flash
         models_to_try = ["gemini-2.0-flash", "gemini-1.5-flash"]
         last_err = None
 
         for model_name in models_to_try:
             try:
-                logger.info(f"[GeminiService] Sending image to model {model_name}...")
+                logger.info(f"[Prescription Recognition] Sending image directly to Google Gemini Vision API ({model_name})...")
                 response = self.client.models.generate_content(
                     model=model_name,
                     contents=[pil_img, prompt_text]
                 )
 
+                logger.info(f"[Prescription Recognition] Gemini response received from {model_name}.")
                 txt = response.text.strip()
                 if txt.startswith("```json"):
                     txt = txt[7:]
@@ -157,6 +167,7 @@ class GeminiPrescriptionService:
                 if not isinstance(medicines_list, list) and isinstance(parsed_data, list):
                     medicines_list = parsed_data
 
+                logger.info(f"[Prescription Recognition] Parsed {len(medicines_list)} medicine(s) from Gemini JSON output.")
                 return {
                     "success": True,
                     "model_used": model_name,
@@ -165,7 +176,7 @@ class GeminiPrescriptionService:
                 }
 
             except Exception as e:
-                logger.warning(f"[GeminiService] Model {model_name} call error: {e}")
+                logger.warning(f"[Prescription Recognition] Model {model_name} call error: {e}")
                 last_err = e
 
         return {

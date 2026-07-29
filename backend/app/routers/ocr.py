@@ -12,11 +12,11 @@ from app.database import get_db
 from app.models.medicine_models import MedicineMaster, OCRRecord
 from app.models.user_models import User, Medicine, ReminderSchedule
 from app.services.auth_service import get_current_user, RoleChecker
-from app.services.gemini_service import gemini_service, preprocess_prescription_image_opencv
+from app.services.gemini_service import gemini_service
 
 logger = logging.getLogger("pillsync.ocr")
 
-router = APIRouter(prefix="/ocr", tags=["Prescription Direct Vision - Google Gemini"])
+router = APIRouter(prefix="/ocr", tags=["Prescription Recognition - Google Gemini Vision"])
 
 auth_required = RoleChecker(allowed_roles=["admin", "patient", "caregiver", "doctor"])
 
@@ -41,6 +41,7 @@ NOISE_KEYWORDS = [
 
 class SaveMedicineItem(BaseModel):
     name: str = Field(..., min_length=1)
+    brand_name: Optional[str] = None
     generic_name: Optional[str] = None
     strength: Optional[str] = "500 mg"
     dosage: str = Field(..., min_length=1)
@@ -57,6 +58,7 @@ def fuzzy_match_with_master(candidate_name: str, master_meds: List[MedicineMaste
     """
     Compare extracted medicine against Medicine Master database using RapidFuzz.
     If similarity ratio >= 80%, automatically correct spelling mistakes.
+    Never replace a medicine with an unrelated medicine.
     """
     clean_cand = re.sub(r"\b\d+(?:\.\d+)?\s*(?:mg|mcg|ml|g|iu|%)\b", "", candidate_name, flags=re.IGNORECASE).strip()
     clean_cand = re.sub(r"[^\w\s]", "", clean_cand).strip()
@@ -71,12 +73,13 @@ def fuzzy_match_with_master(candidate_name: str, master_meds: List[MedicineMaste
         result = process.extractOne(clean_cand, master_names, scorer=fuzz.ratio)
         if result:
             best_name, best_score, _ = result
-            matched_med = master_map.get(best_name.lower())
             score_pct = float(best_score)
+            matched_med = master_map.get(best_name.lower())
 
-            if score_pct >= 80.0:
+            # Ensure high similarity before auto-correcting to prevent replacing with unrelated medicine
+            if score_pct >= 80.0 and matched_med:
                 return matched_med, score_pct, "Auto-Corrected"
-            else:
+            elif matched_med:
                 return matched_med, score_pct, "Needs Review"
     else:
         best_match = None
@@ -87,43 +90,12 @@ def fuzzy_match_with_master(candidate_name: str, master_meds: List[MedicineMaste
                 best_score = ratio
                 best_match = med
 
-        if best_score >= 80.0:
+        if best_score >= 80.0 and best_match:
             return best_match, best_score, "Auto-Corrected"
-        else:
+        elif best_match:
             return best_match, best_score, "Needs Review"
 
     return None, 0.0, "Needs Review"
-
-def fallback_parser(db: Session) -> List[Dict[str, Any]]:
-    """Backup fallback medicine array if Gemini API key is missing or unconfigured."""
-    master_meds = db.query(MedicineMaster).filter(MedicineMaster.approval_status == "Approved").all()
-    sample_raw = [
-        {"name": "Dolo 650", "generic": "Paracetamol", "strength": "650 mg", "dosage": "1 Tablet", "freq": "Twice Daily", "timing": "Morning, Night"},
-        {"name": "Paracetamol", "generic": "Paracetamol", "strength": "500 mg", "dosage": "1 Tablet", "freq": "Once Daily", "timing": "Morning"},
-        {"name": "Azithromycin", "generic": "Azithromycin", "strength": "500 mg", "dosage": "1 Tablet", "freq": "Once Daily", "timing": "Morning"},
-        {"name": "Metformin", "generic": "Metformin Hydrochloride", "strength": "500 mg", "dosage": "1 Tablet", "freq": "Twice Daily", "timing": "Morning, Night"},
-        {"name": "Pantoprazole", "generic": "Pantoprazole Sodium", "strength": "40 mg", "dosage": "1 Tablet", "freq": "Once Daily", "timing": "Morning"}
-    ]
-
-    extracted = []
-    for item in sample_raw:
-        matched_med, similarity_score, match_status = fuzzy_match_with_master(item["name"], master_meds)
-        med_name = matched_med.name if matched_med else item["name"]
-
-        extracted.append({
-            "medicine_name": med_name,
-            "generic_name": item["generic"],
-            "strength": item["strength"],
-            "dosage": item["dosage"],
-            "frequency": item["freq"],
-            "duration": "7 Days",
-            "timing": item["timing"],
-            "food": "After Food",
-            "instructions": f"Take {item['dosage']} after meal",
-            "confidence": 95
-        })
-
-    return extracted
 
 @router.post("/upload")
 async def upload_prescription_ocr(
@@ -131,7 +103,7 @@ async def upload_prescription_ocr(
     db: Session = Depends(get_db), 
     current_user: User = Depends(auth_required)
 ):
-    """Upload prescription image/PDF file for Google Gemini Vision analysis."""
+    """Upload prescription image/PDF file for direct Google Gemini Vision analysis."""
     if not file or not file.filename:
         raise HTTPException(status_code=400, detail="Empty file or missing filename.")
 
@@ -166,6 +138,7 @@ async def upload_prescription_ocr(
     db.commit()
     db.refresh(ocr_record)
 
+    logger.info(f"[Prescription Recognition] Image uploaded successfully: {file.filename} ({file_size} bytes)")
     return {
         "record_id": ocr_record.id,
         "filename": file.filename,
@@ -182,8 +155,8 @@ async def extract_prescription(
     current_user: User = Depends(auth_required)
 ):
     """
-    Direct Google Gemini Vision API Prescription Analysis & RapidFuzz Validation.
-    No traditional OCR engine is used.
+    Direct Google Gemini Vision API Prescription Analysis & RapidFuzz Master Validation.
+    Zero OCR, zero fallback extraction, zero hardcoded/dummy medicines.
     """
     contents = None
     filename = "prescription"
@@ -195,7 +168,7 @@ async def extract_prescription(
             OCRRecord.user_id == current_user.id
         ).first()
         if not ocr_record:
-            raise HTTPException(status_code=404, detail="OCR record not found.")
+            raise HTTPException(status_code=404, detail="Prescription record not found.")
         filename = ocr_record.filename
 
     if file:
@@ -212,30 +185,36 @@ async def extract_prescription(
     if not contents:
         raise HTTPException(status_code=400, detail="Could not read prescription image data.")
 
-    # Direct Gemini Vision Recognition
+    # Direct Gemini Vision Request
+    logger.info("[Prescription Recognition] Sending prescription image directly to Google Gemini Vision API...")
     gemini_res = await gemini_service.analyze_prescription_direct(contents)
-    gemini_medicines = gemini_res.get("medicines") if gemini_res.get("success") else None
-    ocr_status = "Google Gemini Vision Direct" if gemini_medicines is not None else "Rule-based Fallback"
+    logger.info(f"[Prescription Recognition] Gemini Vision API result status: {gemini_res.get('success')}")
 
-    if gemini_medicines is None:
-        gemini_medicines = fallback_parser(db)
+    if not gemini_res.get("success") or not gemini_res.get("medicines"):
+        err_msg = gemini_res.get("error") or "No medicines could be confidently extracted."
+        logger.error(f"[Prescription Recognition] Extraction failed: {err_msg}")
+        raise HTTPException(status_code=422, detail="No medicines could be confidently extracted.")
+
+    gemini_medicines = gemini_res["medicines"]
+    logger.info(f"[Prescription Recognition] Parsed JSON from Gemini: {json.dumps(gemini_medicines)}")
 
     master_meds = db.query(MedicineMaster).filter(MedicineMaster.approval_status == "Approved").all()
     validated_medicines = []
 
     # RapidFuzz Validation & Auto-Correction
     for item in gemini_medicines:
-        raw_name = item.get("medicine_name") or item.get("name", "").strip()
-        if not raw_name:
+        raw_name = item.get("medicine_name") or item.get("brand_name") or item.get("name", "").strip()
+        if not raw_name or any(kw in raw_name.lower() for kw in NOISE_KEYWORDS):
             continue
 
         matched_med, similarity_score, match_status = fuzzy_match_with_master(raw_name, master_meds)
 
         final_name = matched_med.name if (matched_med and similarity_score >= 80.0) else raw_name
         matched_master_name = matched_med.name if matched_med else "N/A"
-        conf = item.get("confidence", 90)
+        conf = float(item.get("confidence", 90))
 
-        if conf < 70 or match_status == "Needs Review":
+        # Confidence check: if confidence below 80%, mark as Needs Review
+        if conf < 80.0 or match_status == "Needs Review":
             status_text = "Needs Review"
         else:
             status_text = match_status
@@ -243,6 +222,7 @@ async def extract_prescription(
         validated_medicines.append({
             "name": final_name,
             "medicine_name": final_name,
+            "brand_name": item.get("brand_name") or final_name,
             "generic_name": item.get("generic_name") or (matched_med.generic_name if matched_med else None),
             "strength": item.get("strength") or (matched_med.strength + (matched_med.unit or "mg") if matched_med and matched_med.strength else "500 mg"),
             "dosage": item.get("dosage", "1 Tablet"),
@@ -250,29 +230,31 @@ async def extract_prescription(
             "duration": item.get("duration", "7 Days"),
             "timing": item.get("timing", "Morning, Night"),
             "food": item.get("food") or item.get("before_after_food", "After Food"),
-            "instructions": item.get("instructions", ""),
+            "instructions": item.get("instructions") or item.get("special_instructions", ""),
             "status": status_text,
             "is_matched": bool(matched_med and similarity_score >= 80.0),
             "matched_medicine": matched_master_name,
             "confidence": conf
         })
 
+    logger.info(f"[Prescription Recognition] Medicines validated: {len(validated_medicines)} item(s).")
+
     if not validated_medicines:
         raise HTTPException(
             status_code=422,
-            detail="No valid medications detected in prescription image. Please review image clarity and try again."
+            detail="No medicines could be confidently extracted."
         )
 
     if ocr_record:
         ocr_record.raw_text = json.dumps(validated_medicines, indent=2)
         ocr_record.medicines_count = len(validated_medicines)
-        ocr_record.ocr_status = ocr_status
+        ocr_record.ocr_status = "Google Gemini Vision Direct"
         db.commit()
 
     return {
         "record_id": ocr_record.id if ocr_record else None,
         "filename": filename,
-        "ocr_status": ocr_status,
+        "ocr_status": "Google Gemini Vision Direct",
         "extracted_count": len(validated_medicines),
         "medicines": validated_medicines
     }
@@ -283,7 +265,7 @@ def save_medicines_from_ocr(
     db: Session = Depends(get_db),
     current_user: User = Depends(auth_required)
 ):
-    """Save validated medicines. Never save medicines automatically without explicit user review & confirmation."""
+    """Save ONLY medicines confirmed and reviewed by user. Never save automatically or invent medicines."""
     saved_meds = []
     skipped_count = 0
 
@@ -329,7 +311,7 @@ def save_medicines_from_ocr(
             food_relation=item.food or "After Food",
             start_date=date.today(),
             end_date=date.today() + timedelta(days=30),
-            notes=item.instructions or f"Validated via Google Gemini Vision Direct ({frequency})"
+            notes=item.instructions or f"Extracted & Confirmed via Google Gemini Vision ({frequency})"
         )
         db.add(db_med)
         db.flush()
@@ -343,6 +325,7 @@ def save_medicines_from_ocr(
         saved_meds.append(db_med.name)
 
     db.commit()
+    logger.info(f"[Prescription Recognition] Medicines saved: {len(saved_meds)} item(s) saved to DB for user_id={current_user.id}.")
     return {
         "message": f"Successfully saved {len(saved_meds)} validated medicines to your active prescription list!",
         "saved_medicines": saved_meds,
@@ -378,14 +361,14 @@ def get_ocr_record_detail(
     db: Session = Depends(get_db),
     current_user: User = Depends(auth_required)
 ):
-    """Get single OCR record detail."""
+    """Get single record detail."""
     record = db.query(OCRRecord).filter(
         OCRRecord.id == record_id,
         OCRRecord.user_id == current_user.id
     ).first()
 
     if not record:
-        raise HTTPException(status_code=404, detail="OCR Record not found.")
+        raise HTTPException(status_code=404, detail="Prescription Record not found.")
 
     return {
         "id": record.id,
