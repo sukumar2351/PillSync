@@ -210,31 +210,31 @@ erDiagram
 - **POST `/notifications/mark-read`**: Mark notifications as read.
 - **POST `/users/profile/notifications/test-email`**: Send a real-time verification test email.
 
-### 5. Intelligent GPT-4 Vision Prescription OCR Endpoints
+### 5. Intelligent Google Gemini Vision Prescription Recognition Endpoints
 - **POST `/ocr/upload`**: Preprocesses prescription file (auto-rotate, deskew, contrast enhance, sharpen, compression) and saves upload record.
-- **POST `/ocr/extract`**: Executes **GPT-4 Vision** intelligent extraction to extract structured medication JSON (`medicine_name`, `strength`, `dosage`, `frequency`, `duration`, `timing`, `food`), completely ignoring doctor/hospital/patient metadata noise. Performs **RapidFuzz** fuzzy matching against `MedicineMaster` for spelling auto-correction.
-- **POST `/ocr/save-medicines`**: Batch saves validated medicines to active prescription list.
+- **POST `/ocr/extract`**: Executes **Google Gemini Vision API** (`gemini-2.5-flash` / `gemini-1.5-flash`) intelligent recognition to extract structured medication JSON (`medicine_name`, `strength`, `dosage`, `frequency`, `duration`, `timing`, `food`, `instructions`), completely ignoring doctor/hospital/patient metadata noise. Performs **RapidFuzz** fuzzy matching against `MedicineMaster` for spelling auto-correction.
+- **POST `/ocr/save-medicines`**: Batch saves validated medicines to active prescription list after user review.
 - **GET `/ocr/history`**: Retrieves prescription scan archive history.
 
 ---
 
-## 🤖 Intelligent GPT-4 Vision OCR Architecture
+## 🤖 Intelligent Google Gemini Vision OCR Architecture
 
-PillSync features a production-grade Prescription OCR engine powered by **GPT-4 Vision** and **RapidFuzz**:
+PillSync features a production-grade Prescription Recognition engine powered by **Google Gemini Vision API** (`google-genai` / `google-generativeai`) and **RapidFuzz**:
 
 ### 1. Image Preprocessing Pipeline
 - **Auto-Rotation & Deskewing**: Automatically transposes image orientation using EXIF metadata.
 - **Contrast & Sharpness Enhancement**: Enhances text legibility for handwritten and printed doctor notes.
-- **Optimized Base64 Encoding**: Resizes large images to max 1600px and converts to compressed JPEG payload.
+- **Optimized Payload Encoding**: Resizes large images to max 1600px and converts to compressed JPEG payload.
 
-### 2. GPT-4 Vision Understanding
-- Instructs GPT-4 Vision to extract ONLY active medication items in structured JSON format.
+### 2. Google Gemini Vision Understanding
+- Instructs Gemini Vision to extract ONLY active medication items in structured JSON format.
 - Automatically discards Doctor names, registration numbers, Hospital logos, addresses, phone numbers, Patient details, age, gender, and diagnosis notes.
 
 ### 3. RapidFuzz Medicine Master Validation
 - Matches extracted medicine names against the PostgreSQL `MedicineMaster` database using `RapidFuzz` string similarity.
 - Similarity >= 80%: Automatically corrects spelling mistakes (e.g. `Dolo650` ➔ `Dolo 650`, `Azithromvcin` ➔ `Azithromycin`).
-- Similarity < 80%: Flags item as `Needs Manual Review`.
+- Similarity < 80%: Flags item as `Needs Review`.
 
 ### 🔑 Environment Variables Setup
 Create a `.env` file in the `backend/` directory:
@@ -242,12 +242,15 @@ Create a `.env` file in the `backend/` directory:
 # Database
 DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/pillsync
 
-# OpenAI API Key for GPT-4 Vision OCR
-OPENAI_API_KEY=your_openai_api_key_here
+# Google Gemini API Key for Vision Recognition
+GEMINI_API_KEY=your_gemini_api_key_here
 
 # Gmail SMTP Email Reminders
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
+SMTP_USER=your_email@gmail.com
+SMTP_PASSWORD=your_app_password
+```
 SMTP_USER=your_email@gmail.com
 SMTP_PASSWORD=your_app_password
 ```
