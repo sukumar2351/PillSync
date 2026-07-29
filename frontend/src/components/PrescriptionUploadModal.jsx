@@ -131,8 +131,13 @@ const PrescriptionUploadModal = ({ isOpen, onClose, onMedicinesSaved }) => {
     try {
       setStep("saving");
       setError("");
-      const res = await ocrService.saveMedicines(validMeds);
-      setSuccessMsg(res.message);
+      const fileMeta = {
+        filename: file?.name || "prescription.jpg",
+        file_type: file?.name?.split('.').pop()?.toUpperCase() || "JPG",
+        file_size_bytes: file?.size || 0
+      };
+      const res = await ocrService.saveMedicines(validMeds, fileMeta);
+      setSuccessMsg(res.message || "Prescription saved successfully.");
 
       if (onMedicinesSaved) {
         onMedicinesSaved(res.saved_medicines);
@@ -143,7 +148,7 @@ const PrescriptionUploadModal = ({ isOpen, onClose, onMedicinesSaved }) => {
         onClose();
       }, 1500);
     } catch (err) {
-      setError(err.response?.data?.detail || "Failed to save medicines.");
+      setError(err.response?.data?.detail || "Failed to save prescription.");
       setStep("review");
     }
   };
@@ -559,7 +564,7 @@ const PrescriptionUploadModal = ({ isOpen, onClose, onMedicinesSaved }) => {
                 className="btn btn-primary"
                 style={{ fontSize: "0.85rem", background: "#10B981" }}
               >
-                <Check size={16} style={{ marginRight: "0.4rem" }} /> Save to Medicine List
+                <Check size={16} style={{ marginRight: "0.4rem" }} /> Save Prescription
               </button>
             )}
           </div>

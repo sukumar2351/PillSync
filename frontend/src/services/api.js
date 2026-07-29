@@ -267,8 +267,13 @@ export const ocrService = {
     const response = await api.post(url);
     return response.data;
   },
-  saveMedicines: async (medicinesList) => {
-    const response = await api.post("/ocr/save-medicines", { medicines: medicinesList });
+  saveMedicines: async (medicinesList, fileMeta = {}) => {
+    const response = await api.post("/ocr/save-medicines", {
+      filename: fileMeta.filename || "prescription.jpg",
+      file_type: fileMeta.file_type || "JPG",
+      file_size_bytes: fileMeta.file_size_bytes || 0,
+      medicines: medicinesList
+    });
     return response.data;
   },
   getHistory: async () => {

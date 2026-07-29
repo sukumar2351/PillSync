@@ -52,6 +52,9 @@ class SaveMedicineItem(BaseModel):
     instructions: Optional[str] = None
 
 class SaveMedicinesBatchRequest(BaseModel):
+    filename: Optional[str] = "prescription.jpg"
+    file_type: Optional[str] = "JPG"
+    file_size_bytes: Optional[int] = 0
     medicines: List[SaveMedicineItem]
 
 def fuzzy_match_with_master(candidate_name: str, master_meds: List[MedicineMaster]) -> tuple:
@@ -76,7 +79,6 @@ def fuzzy_match_with_master(candidate_name: str, master_meds: List[MedicineMaste
             score_pct = float(best_score)
             matched_med = master_map.get(best_name.lower())
 
-            # Ensure high similarity before auto-correcting to prevent replacing with unrelated medicine
             if score_pct >= 80.0 and matched_med:
                 return matched_med, score_pct, "Auto-Corrected"
             elif matched_med:
@@ -100,10 +102,12 @@ def fuzzy_match_with_master(candidate_name: str, master_meds: List[MedicineMaste
 @router.post("/upload")
 async def upload_prescription_ocr(
     file: UploadFile = File(...), 
-    db: Session = Depends(get_db), 
     current_user: User = Depends(auth_required)
 ):
-    """Upload prescription image/PDF file for direct Google Gemini Vision analysis."""
+    """
+    Upload prescription image/PDF file temporarily.
+    Does NOT create any history record in PostgreSQL database until user clicks Save.
+    """
     if not file or not file.filename:
         raise HTTPException(status_code=400, detail="Empty file or missing filename.")
 
@@ -127,60 +131,38 @@ async def upload_prescription_ocr(
     with open(saved_path, "wb") as f:
         f.write(contents)
 
-    ocr_record = OCRRecord(
-        user_id=current_user.id,
-        filename=file.filename,
-        file_type=ext.upper(),
-        file_size_bytes=file_size,
-        ocr_status="Uploaded"
-    )
-    db.add(ocr_record)
-    db.commit()
-    db.refresh(ocr_record)
-
-    logger.info(f"[Prescription Recognition] Image uploaded successfully: {file.filename} ({file_size} bytes)")
+    logger.info(f"[Prescription Recognition] Temporary upload saved: {file.filename} ({file_size} bytes). No DB record created yet.")
     return {
-        "record_id": ocr_record.id,
         "filename": file.filename,
+        "saved_path": safe_filename,
         "file_type": ext.upper(),
         "file_size_bytes": file_size,
-        "created_at": ocr_record.created_at
+        "message": "File uploaded temporarily."
     }
 
 @router.post("/extract")
 async def extract_prescription(
     file: Optional[UploadFile] = File(None),
-    record_id: Optional[int] = None,
+    saved_path: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(auth_required)
 ):
     """
     Direct Google Gemini Vision API Prescription Analysis & RapidFuzz Master Validation.
-    Zero OCR, zero fallback extraction, zero hardcoded/dummy medicines.
+    Does NOT create any history record in PostgreSQL database until user clicks Save.
     """
     contents = None
-    filename = "prescription"
-    ocr_record = None
-
-    if record_id:
-        ocr_record = db.query(OCRRecord).filter(
-            OCRRecord.id == record_id, 
-            OCRRecord.user_id == current_user.id
-        ).first()
-        if not ocr_record:
-            raise HTTPException(status_code=404, detail="Prescription record not found.")
-        filename = ocr_record.filename
+    filename = "prescription.jpg"
 
     if file:
         contents = await file.read()
         filename = file.filename
-    elif ocr_record:
-        safe_filename = [f for f in os.listdir(UPLOAD_DIR) if f.startswith(f"{current_user.id}_")]
-        if safe_filename:
-            path = os.path.join(UPLOAD_DIR, safe_filename[-1])
-            if os.path.exists(path):
-                with open(path, "rb") as f:
-                    contents = f.read()
+    elif saved_path:
+        path = os.path.join(UPLOAD_DIR, saved_path)
+        if os.path.exists(path):
+            with open(path, "rb") as f:
+                contents = f.read()
+            filename = saved_path.split("_", 2)[-1] if "_" in saved_path else saved_path
 
     if not contents:
         raise HTTPException(status_code=400, detail="Could not read prescription image data.")
@@ -188,7 +170,6 @@ async def extract_prescription(
     # Direct Gemini Vision Request
     logger.info("[Prescription Recognition] Sending prescription image directly to Google Gemini Vision API...")
     gemini_res = await gemini_service.analyze_prescription_direct(contents)
-    logger.info(f"[Prescription Recognition] Gemini Vision API result status: {gemini_res.get('success')}")
 
     if not gemini_res.get("success") or not gemini_res.get("medicines"):
         err_msg = gemini_res.get("error") or "No medicines could be confidently extracted."
@@ -213,7 +194,6 @@ async def extract_prescription(
         matched_master_name = matched_med.name if matched_med else "N/A"
         conf = float(item.get("confidence", 90))
 
-        # Confidence check: if confidence below 80%, mark as Needs Review
         if conf < 80.0 or match_status == "Needs Review":
             status_text = "Needs Review"
         else:
@@ -237,7 +217,7 @@ async def extract_prescription(
             "confidence": conf
         })
 
-    logger.info(f"[Prescription Recognition] Medicines validated: {len(validated_medicines)} item(s).")
+    logger.info(f"[Prescription Recognition] Medicines extracted: {len(validated_medicines)} item(s). No DB record created yet.")
 
     if not validated_medicines:
         raise HTTPException(
@@ -245,14 +225,7 @@ async def extract_prescription(
             detail="No medicines could be confidently extracted."
         )
 
-    if ocr_record:
-        ocr_record.raw_text = json.dumps(validated_medicines, indent=2)
-        ocr_record.medicines_count = len(validated_medicines)
-        ocr_record.ocr_status = "Google Gemini Vision Direct"
-        db.commit()
-
     return {
-        "record_id": ocr_record.id if ocr_record else None,
         "filename": filename,
         "ocr_status": "Google Gemini Vision Direct",
         "extracted_count": len(validated_medicines),
@@ -265,7 +238,10 @@ def save_medicines_from_ocr(
     db: Session = Depends(get_db),
     current_user: User = Depends(auth_required)
 ):
-    """Save ONLY medicines confirmed and reviewed by user. Never save automatically or invent medicines."""
+    """
+    Save validated medicines & create EXACTLY ONE scan history record in PostgreSQL database.
+    Triggered ONLY when user explicitly clicks "Save Prescription".
+    """
     saved_meds = []
     skipped_count = 0
 
@@ -324,10 +300,24 @@ def save_medicines_from_ocr(
 
         saved_meds.append(db_med.name)
 
+    # CREATE EXACTLY ONE OCR HISTORY RECORD UPON CONFIRMED SAVE
+    history_record = OCRRecord(
+        user_id=current_user.id,
+        filename=payload.filename or "prescription.jpg",
+        file_type=payload.file_type or "JPG",
+        file_size_bytes=payload.file_size_bytes or 0,
+        ocr_status="Google Gemini Vision Direct",
+        raw_text=json.dumps([item.dict() for item in payload.medicines], indent=2),
+        medicines_count=len(saved_meds)
+    )
+    db.add(history_record)
     db.commit()
-    logger.info(f"[Prescription Recognition] Medicines saved: {len(saved_meds)} item(s) saved to DB for user_id={current_user.id}.")
+    db.refresh(history_record)
+
+    logger.info(f"[Prescription Recognition] Prescription saved successfully! Record ID: {history_record.id}, Medicines: {len(saved_meds)}.")
     return {
-        "message": f"Successfully saved {len(saved_meds)} validated medicines to your active prescription list!",
+        "message": "Prescription saved successfully.",
+        "record_id": history_record.id,
         "saved_medicines": saved_meds,
         "skipped_count": skipped_count
     }
@@ -337,7 +327,7 @@ def get_ocr_history(
     db: Session = Depends(get_db),
     current_user: User = Depends(auth_required)
 ):
-    """Retrieve user's scan history."""
+    """Retrieve user's saved prescription history."""
     records = db.query(OCRRecord).filter(
         OCRRecord.user_id == current_user.id
     ).order_by(OCRRecord.created_at.desc()).all()
@@ -361,7 +351,7 @@ def get_ocr_record_detail(
     db: Session = Depends(get_db),
     current_user: User = Depends(auth_required)
 ):
-    """Get single record detail."""
+    """Get single saved prescription detail."""
     record = db.query(OCRRecord).filter(
         OCRRecord.id == record_id,
         OCRRecord.user_id == current_user.id
