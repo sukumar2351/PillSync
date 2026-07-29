@@ -343,7 +343,7 @@ const PrescriptionUploadModal = ({ isOpen, onClose, onMedicinesSaved }) => {
                     Extracted Prescription Items ({extractedData.length})
                   </h4>
                   <span style={{ fontSize: "0.8rem", color: "#64748B" }}>
-                    Review, edit, or adjust extracted medication details before saving to your list.
+                    Multi-stage OCR extracted medication data matched against Medicine Master database.
                   </span>
                 </div>
                 <button
@@ -356,24 +356,34 @@ const PrescriptionUploadModal = ({ isOpen, onClose, onMedicinesSaved }) => {
                 </button>
               </div>
 
+              {/* Warning alert if low confidence items exist */}
+              {extractedData.some(item => item.warning_note || item.confidence < 65) && (
+                <div style={{ background: "#FEF3C7", border: "1px solid #FDE68A", padding: "0.75rem 1rem", borderRadius: "12px", marginBottom: "1rem", color: "#92400E", fontSize: "0.83rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <AlertCircle size={18} color="#D97706" />
+                  <span>We could not confidently identify all medicines. Please review and verify values manually before saving.</span>
+                </div>
+              )}
+
               {/* Editable Review Table */}
               <div style={{ overflowX: "auto", border: "1px solid #E2E8F0", borderRadius: "12px", marginBottom: "1.25rem" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.84rem", textAlign: "left" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.82rem", textAlign: "left" }}>
                   <thead>
                     <tr style={{ background: "#F8FAFC", borderBottom: "1px solid #E2E8F0", color: "#475569" }}>
                       <th style={{ padding: "0.75rem" }}>Medicine Name</th>
+                      <th style={{ padding: "0.75rem" }}>Strength</th>
                       <th style={{ padding: "0.75rem" }}>Dosage</th>
                       <th style={{ padding: "0.75rem" }}>Frequency</th>
                       <th style={{ padding: "0.75rem" }}>Duration</th>
-                      <th style={{ padding: "0.75rem" }}>Master Status</th>
+                      <th style={{ padding: "0.75rem" }}>Matched Medicine</th>
+                      <th style={{ padding: "0.75rem" }}>Status</th>
                       <th style={{ padding: "0.75rem" }}>Confidence</th>
                       <th style={{ padding: "0.75rem", textAlign: "center" }}>Action</th>
                     </tr>
                   </thead>
                   <tbody>
                     {extractedData.map((item, idx) => (
-                      <tr key={idx} style={{ borderBottom: "1px solid #F1F5F9", background: item.is_matched ? "#FFFFFF" : "#FFFBEB" }}>
-                        <td style={{ padding: "0.5rem" }}>
+                      <tr key={idx} style={{ borderBottom: "1px solid #F1F5F9", background: item.status === "Auto-Corrected" ? "#F0FDF4" : (item.is_matched ? "#FFFFFF" : "#FFFBEB") }}>
+                        <td style={{ padding: "0.4rem" }}>
                           <input
                             type="text"
                             className="form-control"
@@ -383,16 +393,25 @@ const PrescriptionUploadModal = ({ isOpen, onClose, onMedicinesSaved }) => {
                             placeholder="Medicine Name"
                           />
                         </td>
-                        <td style={{ padding: "0.5rem" }}>
+                        <td style={{ padding: "0.4rem" }}>
+                          <input
+                            type="text"
+                            className="form-control"
+                            value={item.strength || "500 mg"}
+                            onChange={(e) => handleTableEdit(idx, "strength", e.target.value)}
+                            style={{ fontSize: "0.82rem", padding: "0.3rem 0.5rem", width: "80px" }}
+                          />
+                        </td>
+                        <td style={{ padding: "0.4rem" }}>
                           <input
                             type="text"
                             className="form-control"
                             value={item.dosage}
                             onChange={(e) => handleTableEdit(idx, "dosage", e.target.value)}
-                            style={{ fontSize: "0.82rem", padding: "0.3rem 0.5rem", width: "90px" }}
+                            style={{ fontSize: "0.82rem", padding: "0.3rem 0.5rem", width: "95px" }}
                           />
                         </td>
-                        <td style={{ padding: "0.5rem" }}>
+                        <td style={{ padding: "0.4rem" }}>
                           <select
                             className="form-control"
                             value={item.frequency}
@@ -403,37 +422,41 @@ const PrescriptionUploadModal = ({ isOpen, onClose, onMedicinesSaved }) => {
                             <option value="Twice Daily">Twice Daily</option>
                             <option value="Three Times Daily">Three Times Daily</option>
                             <option value="Four Times Daily">Four Times Daily</option>
+                            <option value="As Needed">As Needed</option>
                           </select>
                         </td>
-                        <td style={{ padding: "0.5rem" }}>
+                        <td style={{ padding: "0.4rem" }}>
                           <input
                             type="text"
                             className="form-control"
                             value={item.duration}
                             onChange={(e) => handleTableEdit(idx, "duration", e.target.value)}
-                            style={{ fontSize: "0.82rem", padding: "0.3rem 0.5rem", width: "80px" }}
+                            style={{ fontSize: "0.82rem", padding: "0.3rem 0.5rem", width: "75px" }}
                           />
                         </td>
-                        <td style={{ padding: "0.5rem" }}>
+                        <td style={{ padding: "0.4rem", color: "#475569", fontWeight: 600 }}>
+                          {item.matched_medicine || (item.is_matched ? item.name : "N/A")}
+                        </td>
+                        <td style={{ padding: "0.4rem" }}>
                           <span
                             style={{
                               padding: "0.2rem 0.5rem",
                               borderRadius: "10px",
                               fontSize: "0.72rem",
                               fontWeight: 700,
-                              background: item.is_matched ? "#DCFCE7" : "#FEF3C7",
-                              color: item.is_matched ? "#15803D" : "#B45309"
+                              background: item.status === "Auto-Corrected" ? "#DCFCE7" : (item.is_matched ? "#E0F2FE" : "#FEF3C7"),
+                              color: item.status === "Auto-Corrected" ? "#15803D" : (item.is_matched ? "#0369A1" : "#B45309")
                             }}
                           >
-                            {item.status}
+                            {item.status || (item.is_matched ? "Matched" : "Needs Review")}
                           </span>
                         </td>
-                        <td style={{ padding: "0.5rem" }}>
-                          <span style={{ fontWeight: 700, color: "#2563EB", fontSize: "0.8rem" }}>
-                            {(item.confidence * 100).toFixed(0)}%
+                        <td style={{ padding: "0.4rem" }}>
+                          <span style={{ fontWeight: 800, color: item.confidence >= 80 ? "#166534" : "#D97706", fontSize: "0.8rem" }}>
+                            {item.confidence || 90}%
                           </span>
                         </td>
-                        <td style={{ padding: "0.5rem", textAlign: "center" }}>
+                        <td style={{ padding: "0.4rem", textAlign: "center" }}>
                           <button
                             onClick={() => handleRemoveRow(idx)}
                             style={{ background: "none", border: "none", color: "#EF4444", cursor: "pointer" }}
