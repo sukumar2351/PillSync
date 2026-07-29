@@ -6,6 +6,8 @@ from datetime import date, datetime, timedelta
 
 from app.database import get_db
 from app.models.user_models import User, Medicine, ReminderSchedule, MedicationHistory, Notification
+from app.models.medicine_models import MedicineMaster
+from app.routers.medicine_master import sanitize_medicine_name
 
 from app.services.auth_service import get_current_user, RoleChecker
 from app.schemas.user_schemas import (
@@ -28,6 +30,19 @@ patient_only = RoleChecker(allowed_roles=["patient"])
 @router.post("/", response_model=MedicineResponse, status_code=status.HTTP_201_CREATED)
 def add_medicine(payload: MedicineCreate, db: Session = Depends(get_db), current_user: User = Depends(patient_only)):
     """Create a new medicine and generate its dynamic reminder schedules."""
+    # Sanitize and Validate name
+    sanitized_name = sanitize_medicine_name(payload.name)
+    master_med = db.query(MedicineMaster).filter(
+        MedicineMaster.name.ilike(sanitized_name),
+        MedicineMaster.approval_status == "Approved"
+    ).first()
+    
+    if not master_med:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Medicine '{sanitized_name}' is not in the approved database. Please choose from autocomplete suggestions or submit a new medicine request for admin approval."
+        )
+
     # Check morning/afternoon/night toggles based on times
     morn = any(int(t.split(":")[0]) < 12 for t in payload.reminder_times if ":" in t)
     aft = any(12 <= int(t.split(":")[0]) < 17 for t in payload.reminder_times if ":" in t)
@@ -35,7 +50,7 @@ def add_medicine(payload: MedicineCreate, db: Session = Depends(get_db), current
 
     db_med = Medicine(
         user_id=current_user.id,
-        name=payload.name,
+        name=master_med.name,  # Use standard approved name from master database
         dosage=payload.dosage,
         quantity=payload.quantity,
         frequency=payload.frequency,
@@ -90,6 +105,20 @@ def update_medicine(medicine_id: int, payload: MedicineUpdate, db: Session = Dep
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Medicine not found")
 
     update_data = payload.model_dump(exclude_unset=True)
+    
+    if "name" in update_data:
+        sanitized_name = sanitize_medicine_name(update_data["name"])
+        master_med = db.query(MedicineMaster).filter(
+            MedicineMaster.name.ilike(sanitized_name),
+            MedicineMaster.approval_status == "Approved"
+        ).first()
+        if not master_med:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Medicine '{sanitized_name}' is not in the approved database. Please choose from autocomplete suggestions or submit a new medicine request for admin approval."
+            )
+        update_data["name"] = master_med.name
+
     reminder_times = update_data.pop("reminder_times", None)
 
     for key, value in update_data.items():
