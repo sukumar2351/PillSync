@@ -1,8 +1,6 @@
 import re
 import os
-import io
 import json
-import base64
 import logging
 from datetime import date, datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
@@ -10,37 +8,20 @@ from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
 
-from PIL import Image, ImageEnhance, ImageOps
-
 from app.database import get_db
 from app.models.medicine_models import MedicineMaster, OCRRecord
 from app.models.user_models import User, Medicine, ReminderSchedule
 from app.services.auth_service import get_current_user, RoleChecker
+from app.services.gemini_service import gemini_service, preprocess_prescription_image_opencv
 
 logger = logging.getLogger("pillsync.ocr")
 
-router = APIRouter(prefix="/ocr", tags=["Prescription OCR - Google Gemini"])
+router = APIRouter(prefix="/ocr", tags=["Prescription Direct Vision - Google Gemini"])
 
 auth_required = RoleChecker(allowed_roles=["admin", "patient", "caregiver", "doctor"])
 
 UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "uploads", "prescriptions")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
-
-# ── Google Gemini SDK Imports ────────────────────────────────
-GEMINI_GENAI_NEW = False
-GEMINI_GENAI_OLD = False
-
-try:
-    from google import genai
-    GEMINI_GENAI_NEW = True
-except ImportError:
-    pass
-
-try:
-    import google.generativeai as genai_old
-    GEMINI_GENAI_OLD = True
-except ImportError:
-    pass
 
 # RapidFuzz Import
 RAPIDFUZZ_AVAILABLE = False
@@ -60,6 +41,7 @@ NOISE_KEYWORDS = [
 
 class SaveMedicineItem(BaseModel):
     name: str = Field(..., min_length=1)
+    generic_name: Optional[str] = None
     strength: Optional[str] = "500 mg"
     dosage: str = Field(..., min_length=1)
     frequency: str = Field("Once Daily")
@@ -71,45 +53,10 @@ class SaveMedicineItem(BaseModel):
 class SaveMedicinesBatchRequest(BaseModel):
     medicines: List[SaveMedicineItem]
 
-# ── 1. IMAGE PREPROCESSING (Auto-Rotate, Deskew, Enhance) ────
-def preprocess_prescription_image(image_bytes: bytes) -> tuple:
-    """
-    Auto rotate, deskew, resize, improve contrast, sharpen,
-    and convert image into Bytes & Base64 encoded JPEG payload for Gemini.
-    """
-    try:
-        img = Image.open(io.BytesIO(image_bytes))
-        img = ImageOps.exif_transpose(img)
-
-        if img.mode != "RGB":
-            img = img.convert("RGB")
-
-        max_dim = 1600
-        if max(img.width, img.height) > max_dim:
-            img.thumbnail((max_dim, max_dim), Image.Resampling.LANCZOS)
-
-        contrast_enhancer = ImageEnhance.Contrast(img)
-        img = contrast_enhancer.enhance(1.3)
-
-        sharpness_enhancer = ImageEnhance.Sharpness(img)
-        img = sharpness_enhancer.enhance(1.4)
-
-        output_buffer = io.BytesIO()
-        img.save(output_buffer, format="JPEG", quality=85, optimize=True)
-        compressed_bytes = output_buffer.getvalue()
-        base64_str = base64.b64encode(compressed_bytes).decode("utf-8")
-
-        return img, compressed_bytes, f"data:image/jpeg;base64,{base64_str}"
-    except Exception as e:
-        logger.error(f"Image preprocessing failed: {e}")
-        base64_str = base64.b64encode(image_bytes).decode("utf-8")
-        return None, image_bytes, f"data:image/jpeg;base64,{base64_str}"
-
-# ── 2. RAPIDFUZZ MEDICINE MASTER MATCHING ───────────────────
 def fuzzy_match_with_master(candidate_name: str, master_meds: List[MedicineMaster]) -> tuple:
     """
     Compare extracted medicine against Medicine Master database using RapidFuzz.
-    If similarity ratio >= 80%, automatically correct the medicine name.
+    If similarity ratio >= 80%, automatically correct spelling mistakes.
     """
     clean_cand = re.sub(r"\b\d+(?:\.\d+)?\s*(?:mg|mcg|ml|g|iu|%)\b", "", candidate_name, flags=re.IGNORECASE).strip()
     clean_cand = re.sub(r"[^\w\s]", "", clean_cand).strip()
@@ -147,89 +94,15 @@ def fuzzy_match_with_master(candidate_name: str, master_meds: List[MedicineMaste
 
     return None, 0.0, "Needs Review"
 
-# ── 3. GOOGLE GEMINI VISION API EXTRACTION ──────────────────
-async def extract_via_gemini_vision(image_obj: Optional[Image.Image], image_bytes: bytes) -> Optional[List[Dict[str, Any]]]:
-    """Call Google Gemini Vision API to extract structured prescription JSON."""
-    api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-    if not api_key:
-        logger.warning("GEMINI_API_KEY not configured in environment variables.")
-        return None
-
-    prompt_text = (
-        "You are an expert clinical pharmacist AI assistant analyzing a medical prescription image.\n"
-        "Extract ONLY active medicine/drug information from this prescription image.\n\n"
-        "IGNORE COMPLETELY:\n"
-        "- Doctor Name, Qualification, Registration Number, Signature, Stamp\n"
-        "- Hospital Name, Logo, Address, Phone Number, Email, Website\n"
-        "- Patient Name, Age, Gender, Blood Pressure, Weight, Date, Diagnosis, General Notes\n\n"
-        "EXTRACT ONLY MEDICATION ENTRIES IN THIS EXACT VALID JSON FORMAT:\n"
-        "{\n"
-        '  "medicines": [\n'
-        "    {\n"
-        '      "medicine_name": "Dolo 650",\n'
-        '      "strength": "650 mg",\n'
-        '      "dosage": "1 Tablet",\n'
-        '      "frequency": "Twice Daily",\n'
-        '      "duration": "5 Days",\n'
-        '      "timing": "Morning, Night",\n'
-        '      "food": "After Food",\n'
-        '      "instructions": "Take after meal",\n'
-        '      "confidence": 98\n'
-        "    }\n"
-        "  ]\n"
-        "}"
-    )
-
-    try:
-        # Try new Google GenAI SDK first
-        if GEMINI_GENAI_NEW:
-            try:
-                client = genai.Client(api_key=api_key)
-                pil_img = image_obj or Image.open(io.BytesIO(image_bytes))
-                response = client.models.generate_content(
-                    model="gemini-2.5-flash",
-                    contents=[pil_img, prompt_text]
-                )
-                txt = response.text.strip()
-                if txt.startswith("```json"):
-                    txt = txt[7:]
-                if txt.endswith("```"):
-                    txt = txt[:-3]
-                parsed = json.loads(txt.strip())
-                return parsed.get("medicines", [])
-            except Exception as e1:
-                logger.warning(f"Google GenAI (new) call fallback: {e1}")
-
-        # Try Google GenerativeAI SDK
-        if GEMINI_GENAI_OLD:
-            genai_old.configure(api_key=api_key)
-            model = genai_old.GenerativeModel("gemini-1.5-flash")
-            pil_img = image_obj or Image.open(io.BytesIO(image_bytes))
-            response = model.generate_content([prompt_text, pil_img])
-            txt = response.text.strip()
-            if txt.startswith("```json"):
-                txt = txt[7:]
-            if txt.endswith("```"):
-                txt = txt[:-3]
-            parsed = json.loads(txt.strip())
-            return parsed.get("medicines", [])
-
-    except Exception as e:
-        logger.error(f"Google Gemini Vision API call failed: {e}")
-        return None
-
-    return None
-
-# ── 4. HEURISTIC FALLBACK PARSER ────────────────────────────
-def fallback_heuristic_parser(db: Session) -> List[Dict[str, Any]]:
-    """Backup fallback list if Gemini API key is missing or offline."""
+def fallback_parser(db: Session) -> List[Dict[str, Any]]:
+    """Backup fallback medicine array if Gemini API key is missing or unconfigured."""
     master_meds = db.query(MedicineMaster).filter(MedicineMaster.approval_status == "Approved").all()
     sample_raw = [
-        {"name": "Dolo 650", "strength": "650 mg", "dosage": "1 Tablet", "freq": "Twice Daily", "timing": "Morning, Night"},
-        {"name": "Paracetamol", "strength": "500 mg", "dosage": "1 Tablet", "freq": "Once Daily", "timing": "Morning"},
-        {"name": "Azithromycin", "strength": "500 mg", "dosage": "1 Tablet", "freq": "Once Daily", "timing": "Morning"},
-        {"name": "Metformin", "strength": "500 mg", "dosage": "1 Tablet", "freq": "Twice Daily", "timing": "Morning, Night"},
-        {"name": "Pantoprazole", "strength": "40 mg", "dosage": "1 Tablet", "freq": "Once Daily", "timing": "Morning"}
+        {"name": "Dolo 650", "generic": "Paracetamol", "strength": "650 mg", "dosage": "1 Tablet", "freq": "Twice Daily", "timing": "Morning, Night"},
+        {"name": "Paracetamol", "generic": "Paracetamol", "strength": "500 mg", "dosage": "1 Tablet", "freq": "Once Daily", "timing": "Morning"},
+        {"name": "Azithromycin", "generic": "Azithromycin", "strength": "500 mg", "dosage": "1 Tablet", "freq": "Once Daily", "timing": "Morning"},
+        {"name": "Metformin", "generic": "Metformin Hydrochloride", "strength": "500 mg", "dosage": "1 Tablet", "freq": "Twice Daily", "timing": "Morning, Night"},
+        {"name": "Pantoprazole", "generic": "Pantoprazole Sodium", "strength": "40 mg", "dosage": "1 Tablet", "freq": "Once Daily", "timing": "Morning"}
     ]
 
     extracted = []
@@ -239,6 +112,7 @@ def fallback_heuristic_parser(db: Session) -> List[Dict[str, Any]]:
 
         extracted.append({
             "medicine_name": med_name,
+            "generic_name": item["generic"],
             "strength": item["strength"],
             "dosage": item["dosage"],
             "frequency": item["freq"],
@@ -257,7 +131,7 @@ async def upload_prescription_ocr(
     db: Session = Depends(get_db), 
     current_user: User = Depends(auth_required)
 ):
-    """Upload prescription image/PDF file."""
+    """Upload prescription image/PDF file for Google Gemini Vision analysis."""
     if not file or not file.filename:
         raise HTTPException(status_code=400, detail="Empty file or missing filename.")
 
@@ -308,7 +182,8 @@ async def extract_prescription(
     current_user: User = Depends(auth_required)
 ):
     """
-    Run Google Gemini Vision API Intelligent Prescription Recognition & RapidFuzz Validation.
+    Direct Google Gemini Vision API Prescription Analysis & RapidFuzz Validation.
+    No traditional OCR engine (Tesseract/PaddleOCR) is used.
     """
     contents = None
     filename = "prescription"
@@ -337,23 +212,20 @@ async def extract_prescription(
     if not contents:
         raise HTTPException(status_code=400, detail="Could not read prescription image data.")
 
-    # Image Preprocessing
-    pil_img, compressed_bytes, _ = preprocess_prescription_image(contents)
+    # Direct Gemini Vision Recognition
+    gemini_res = await gemini_service.analyze_prescription_direct(contents)
+    gemini_medicines = gemini_res.get("medicines") if gemini_res.get("success") else None
+    ocr_status = "Google Gemini Vision Direct" if gemini_medicines is not None else "Rule-based Fallback"
 
-    # 1. Attempt Google Gemini Vision Extraction
-    gemini_medicines = await extract_via_gemini_vision(pil_img, compressed_bytes)
-    ocr_status = "Google Gemini Vision" if gemini_medicines is not None else "Rule-based Fallback"
-
-    # 2. Fallback if Gemini API key not configured or offline
     if gemini_medicines is None:
-        gemini_medicines = fallback_heuristic_parser(db)
+        gemini_medicines = fallback_parser(db)
 
     master_meds = db.query(MedicineMaster).filter(MedicineMaster.approval_status == "Approved").all()
     validated_medicines = []
 
     # RapidFuzz Validation & Auto-Correction
     for item in gemini_medicines:
-        raw_name = item.get("medicine_name", "").strip()
+        raw_name = item.get("medicine_name") or item.get("name", "").strip()
         if not raw_name:
             continue
 
@@ -363,7 +235,7 @@ async def extract_prescription(
         matched_master_name = matched_med.name if matched_med else "N/A"
         conf = item.get("confidence", 90)
 
-        if conf < 80 or match_status == "Needs Review":
+        if conf < 70 or match_status == "Needs Review":
             status_text = "Needs Review"
         else:
             status_text = match_status
@@ -371,12 +243,13 @@ async def extract_prescription(
         validated_medicines.append({
             "name": final_name,
             "medicine_name": final_name,
+            "generic_name": item.get("generic_name") or (matched_med.generic_name if matched_med else None),
             "strength": item.get("strength") or (matched_med.strength + (matched_med.unit or "mg") if matched_med and matched_med.strength else "500 mg"),
             "dosage": item.get("dosage", "1 Tablet"),
             "frequency": item.get("frequency", "Once Daily"),
             "duration": item.get("duration", "7 Days"),
             "timing": item.get("timing", "Morning, Night"),
-            "food": item.get("food", "After Food"),
+            "food": item.get("food") or item.get("before_after_food", "After Food"),
             "instructions": item.get("instructions", ""),
             "status": status_text,
             "is_matched": bool(matched_med and similarity_score >= 80.0),
@@ -410,7 +283,7 @@ def save_medicines_from_ocr(
     db: Session = Depends(get_db),
     current_user: User = Depends(auth_required)
 ):
-    """Save validated medicines. Never save medicines automatically without explicit user confirmation."""
+    """Save validated medicines. Never save medicines automatically without explicit user review & confirmation."""
     saved_meds = []
     skipped_count = 0
 
@@ -456,7 +329,7 @@ def save_medicines_from_ocr(
             food_relation=item.food or "After Food",
             start_date=date.today(),
             end_date=date.today() + timedelta(days=30),
-            notes=item.instructions or f"Validated via Google Gemini Vision ({frequency})"
+            notes=item.instructions or f"Validated via Google Gemini Vision Direct ({frequency})"
         )
         db.add(db_med)
         db.flush()
@@ -481,7 +354,7 @@ def get_ocr_history(
     db: Session = Depends(get_db),
     current_user: User = Depends(auth_required)
 ):
-    """Retrieve user's OCR scan history."""
+    """Retrieve user's scan history."""
     records = db.query(OCRRecord).filter(
         OCRRecord.user_id == current_user.id
     ).order_by(OCRRecord.created_at.desc()).all()
