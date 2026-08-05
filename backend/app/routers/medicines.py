@@ -30,19 +30,9 @@ patient_only = RoleChecker(allowed_roles=["patient"])
 @router.post("/", response_model=MedicineResponse, status_code=status.HTTP_201_CREATED)
 def add_medicine(payload: MedicineCreate, db: Session = Depends(get_db), current_user: User = Depends(patient_only)):
     """Create a new medicine and generate its dynamic reminder schedules."""
-    # Sanitize and Validate name
-    sanitized_name = sanitize_medicine_name(payload.name)
-    master_med = db.query(MedicineMaster).filter(
-        MedicineMaster.name.ilike(sanitized_name),
-        MedicineMaster.approval_status == "Approved"
-    ).first()
+    # Validate with Gemini output fields provided by the frontend
+    # Since the frontend will pass the validated name, generic_name, and confidence, we trust it or could optionally re-validate here.
     
-    if not master_med:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Medicine '{sanitized_name}' is not in the approved database. Please choose from autocomplete suggestions or submit a new medicine request for admin approval."
-        )
-
     # Check morning/afternoon/night toggles based on times
     morn = any(int(t.split(":")[0]) < 12 for t in payload.reminder_times if ":" in t)
     aft = any(12 <= int(t.split(":")[0]) < 17 for t in payload.reminder_times if ":" in t)
@@ -50,7 +40,10 @@ def add_medicine(payload: MedicineCreate, db: Session = Depends(get_db), current
 
     db_med = Medicine(
         user_id=current_user.id,
-        name=master_med.name,  # Use standard approved name from master database
+        name=payload.name,  # Use name from payload (normalized by Gemini on frontend)
+        generic_name=payload.generic_name,
+        validation_source=payload.validation_source,
+        confidence=payload.confidence,
         dosage=payload.dosage,
         quantity=payload.quantity,
         frequency=payload.frequency,
@@ -106,19 +99,9 @@ def update_medicine(medicine_id: int, payload: MedicineUpdate, db: Session = Dep
 
     update_data = payload.model_dump(exclude_unset=True)
     
-    if "name" in update_data:
-        sanitized_name = sanitize_medicine_name(update_data["name"])
-        master_med = db.query(MedicineMaster).filter(
-            MedicineMaster.name.ilike(sanitized_name),
-            MedicineMaster.approval_status == "Approved"
-        ).first()
-        if not master_med:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Medicine '{sanitized_name}' is not in the approved database. Please choose from autocomplete suggestions or submit a new medicine request for admin approval."
-            )
-        update_data["name"] = master_med.name
-
+    # Validation is already handled on frontend by Gemini now.
+    # We just trust the name provided in the payload for now.
+    
     reminder_times = update_data.pop("reminder_times", None)
 
     for key, value in update_data.items():
@@ -418,4 +401,24 @@ def get_patient_history_by_email(email: str, db: Session = Depends(get_db), curr
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Patient user not found.")
     
     return get_patient_history_for_caregiver(patient_user_id=patient.id, db=db, current_user=current_user)
+
+from pydantic import BaseModel
+
+class MedicineValidateRequest(BaseModel):
+    name: str
+
+@router.post("/validate")
+def validate_medicine_name(payload: MedicineValidateRequest):
+    """Validate a medicine name using Gemini AI."""
+    from app.services.medicine_validation_service import validate_medicine_with_gemini
+    
+    try:
+        result = validate_medicine_with_gemini(payload.name)
+        return result.model_dump()
+    except Exception as e:
+        logger.error(f"[Validation API] Error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Unable to verify medicine right now. Please try again later."
+        )
 

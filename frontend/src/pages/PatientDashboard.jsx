@@ -9,7 +9,6 @@ import {
 import { authService, medicineService, drugInteractionService, insightsService } from "../services/api";
 import Sidebar from "../components/Sidebar";
 import Navbar from "../components/Navbar";
-import MedicineSearchInput from "../components/MedicineSearchInput";
 import PrescriptionUploadModal from "../components/PrescriptionUploadModal";
 import DrugInteractionModal from "../components/DrugInteractionModal";
 
@@ -50,8 +49,10 @@ const PatientDashboard = ({ auth, setAuth }) => {
   const [pendingSavePayload, setPendingSavePayload] = useState(null);
   const [healthInsights, setHealthInsights] = useState(null);
 
-  // Form Fields
+  // Form States (Add/Edit)
   const [medName, setMedName] = useState("");
+  const [isValidatingMedicine, setIsValidatingMedicine] = useState(false);
+  const [medicineValidationResult, setMedicineValidationResult] = useState(null);
   const [medDosage, setMedDosage] = useState("");
   const [medQuantity, setMedQuantity] = useState("");
   const [medFrequency, setMedFrequency] = useState("Daily");
@@ -294,6 +295,9 @@ const PatientDashboard = ({ auth, setAuth }) => {
 
     const payload = {
       name: medName,
+      generic_name: medicineValidationResult?.generic_name || null,
+      validation_source: "gemini",
+      confidence: medicineValidationResult?.confidence || null,
       dosage: medDosage,
       quantity: parseInt(medQuantity, 10),
       frequency: medFrequency,
@@ -444,9 +448,53 @@ const PatientDashboard = ({ auth, setAuth }) => {
     }));
     alert(`Reminder snoozed for ${minutes} minutes.`);
   };
+  const handleMedicineBlur = async () => {
+    if (!medName || medName.trim() === "") {
+      setMedicineValidationResult(null);
+      return;
+    }
+
+    setIsValidatingMedicine(true);
+    setMedicineValidationResult(null);
+
+    try {
+      // Assuming we have medicineService.api (axios instance) or use fetch
+      const token = localStorage.getItem("pillsync_token");
+      const res = await fetch("http://127.0.0.1:8000/api/medicines/validate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ name: medName.trim() })
+      });
+      
+      const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data.detail || "Validation failed");
+      }
+      
+      setMedicineValidationResult(data);
+      
+      if (data.is_valid && data.normalized_name) {
+        setMedName(data.normalized_name);
+      }
+    } catch (err) {
+      setMedicineValidationResult({
+        is_valid: false,
+        reason: err.message || "Unable to verify medicine right now. Please try again later.",
+        is_api_error: true
+      });
+    } finally {
+      setIsValidatingMedicine(false);
+    }
+  };
 
   const resetForm = () => {
     setMedName("");
+    setIsValidatingMedicine(false);
+    setMedicineValidationResult(null);
     setMedDosage("");
     setMedQuantity("");
     setMedFrequency("Daily");
@@ -1538,17 +1586,39 @@ const PatientDashboard = ({ auth, setAuth }) => {
 
             <form onSubmit={handleAddMedicine}>
               <div className="form-group" style={{ marginBottom: "1rem" }}>
-                <label className="form-label">Medicine Name (Validated Master Database)</label>
-                <MedicineSearchInput
+                <label className="form-label">Medicine Name</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  required
                   value={medName}
-                  onChange={(val) => setMedName(val)}
-                  onSelectMedicine={(item) => {
-                    setMedName(item.name);
-                    if (item.strength && item.unit) {
-                      setMedDosage(`${item.strength}${item.unit}`);
-                    }
+                  onChange={(e) => {
+                    setMedName(e.target.value);
+                    setMedicineValidationResult(null);
                   }}
+                  onBlur={handleMedicineBlur}
+                  style={{
+                    borderColor: medicineValidationResult?.is_valid === false ? "#EF4444" : undefined
+                  }}
+                  placeholder="Enter medicine name..."
                 />
+                
+                {isValidatingMedicine && (
+                  <div style={{ fontSize: "0.85rem", color: "#3B82F6", marginTop: "0.4rem", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                    <div className="spinner" style={{ width: "12px", height: "12px", border: "2px solid #3B82F6", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
+                    Checking medicine with Gemini AI...
+                  </div>
+                )}
+                
+                {!isValidatingMedicine && medicineValidationResult && (
+                  <div style={{ fontSize: "0.85rem", marginTop: "0.4rem", display: "flex", alignItems: "center", gap: "0.4rem", color: medicineValidationResult.is_valid ? "#10B981" : "#EF4444" }}>
+                    {medicineValidationResult.is_valid ? (
+                      <>✓ Verified by Gemini AI</>
+                    ) : (
+                      <>❌ {medicineValidationResult.reason || "Please enter a valid medicine name."}</>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="form-group" style={{ marginBottom: "1rem" }}>
                 <label className="form-label">Dosage</label>
@@ -1640,7 +1710,20 @@ const PatientDashboard = ({ auth, setAuth }) => {
 
               <div style={{ display: "flex", gap: "1rem", justifyContent: "flex-end" }}>
                 <button type="button" onClick={() => setShowAddModal(false)} className="btn btn-secondary">Cancel</button>
-                <button type="submit" className="btn btn-primary">Add Medicine</button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={
+                    isValidatingMedicine ||
+                    !medicineValidationResult?.is_valid
+                  }
+                  style={{
+                    opacity: (isValidatingMedicine || !medicineValidationResult?.is_valid) ? 0.6 : 1,
+                    cursor: (isValidatingMedicine || !medicineValidationResult?.is_valid) ? "not-allowed" : "pointer"
+                  }}
+                >
+                  Add Medicine
+                </button>
               </div>
             </form>
           </div>

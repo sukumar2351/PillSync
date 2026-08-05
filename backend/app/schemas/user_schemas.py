@@ -219,6 +219,9 @@ from datetime import date
 
 class MedicineCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
+    generic_name: Optional[str] = None
+    validation_source: str = "gemini"
+    confidence: Optional[float] = None
     dosage: str = Field(..., min_length=1, max_length=50)
     quantity: int = Field(..., gt=0)
     frequency: str = Field(..., min_length=1, max_length=50)
@@ -241,18 +244,18 @@ class MedicineCreate(BaseModel):
 
 
 class MedicineUpdate(BaseModel):
-    name: Optional[str] = Field(None, min_length=1, max_length=100)
-    dosage: Optional[str] = Field(None, min_length=1, max_length=50)
-    quantity: Optional[int] = Field(None, gt=0)
-    frequency: Optional[str] = Field(None, min_length=1, max_length=50)
-    morning: Optional[bool] = None
-    afternoon: Optional[bool] = None
-    night: Optional[bool] = None
+    name: Optional[str] = None
+    generic_name: Optional[str] = None
+    validation_source: Optional[str] = None
+    confidence: Optional[float] = None
+    dosage: Optional[str] = None
+    quantity: Optional[int] = None
+    frequency: Optional[str] = None
+    reminder_times: Optional[List[str]] = None
     food_relation: Optional[str] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     notes: Optional[str] = None
-    reminder_times: Optional[List[str]] = None
 
     @field_validator("food_relation")
     @classmethod
@@ -279,6 +282,9 @@ class MedicineResponse(BaseModel):
     id: int
     user_id: int
     name: str
+    generic_name: Optional[str] = None
+    validation_source: Optional[str] = None
+    confidence: Optional[float] = None
     dosage: str
     quantity: int
     frequency: str

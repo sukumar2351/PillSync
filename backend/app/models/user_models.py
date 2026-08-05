@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Text, DateTime, Date, func
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Text, DateTime, Date, func, Float
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -82,6 +82,9 @@ class Medicine(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     name = Column(String(100), nullable=False)
+    generic_name = Column(String(150), nullable=True)
+    validation_source = Column(String(50), default="gemini")
+    confidence = Column(Float, nullable=True)
     dosage = Column(String(50), nullable=False)
     quantity = Column(Integer, nullable=False)
     frequency = Column(String(50), nullable=False)

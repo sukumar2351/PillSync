@@ -377,3 +377,108 @@ git push origin milestone-2
 - [x] Caregiver linked viewports
 - [x] Responsive 3D Parallax React UI
 - [x] Production Build Validation
+
+
+---
+
+# Milestone 3 – AI-Powered Smart Medication Intelligence
+
+## 1. Google Gemini Vision Prescription Analysis
+- Replaced the previous OCR workflow with Google Gemini Vision.
+- Prescription images are analyzed directly using Google Gemini Vision AI.
+- AI extracts structured medicine information.
+- Improved handwritten and printed prescription recognition.
+- Structured JSON output.
+- User reviews extracted medicines before saving.
+
+## 2. AI Medicine Name Validation
+- Medicine validation powered by Google Gemini AI.
+- Invalid medicine names are rejected.
+- Random text, person names, cities and invalid entries are not accepted.
+- Gemini validates medicines before saving.
+- Normalized medicine names are returned when possible.
+
+## 3. Refill Prediction Engine
+- Remaining medicine quantity calculation.
+- Expected finish date prediction.
+- Predicted refill date.
+- Automatic recalculation after dosage changes, stock updates and missed doses.
+
+## 4. Dosage Analysis Workflow
+- Duplicate medicine detection.
+- Frequency conflict detection.
+- Missed dose detection.
+- Extra dose detection.
+- Timing conflict analysis.
+- Severity classification.
+
+## 5. Refill Notification Engine
+- APScheduler background jobs.
+- Automatic refill reminders.
+- 7-day notification.
+- 3-day notification.
+- 1-day notification.
+- Medicine finished notification.
+- Duplicate notification prevention.
+
+## 6. Medication Adherence Analytics
+- Taken doses.
+- Missed doses.
+- Late doses.
+- Adherence percentage.
+- Current streak.
+- Longest streak.
+
+## 7. Backend Improvements
+- FastAPI
+- PostgreSQL
+- SQLAlchemy
+- Alembic
+- APScheduler
+- Google Gemini AI
+
+## 8. APIs
+- \POST /api/ocr/analyze- \POST /api/ocr/save-batch- \GET /api/refill/predictions- \GET /api/dosage-analysis- \GET /api/analytics/adherence- \GET /api/notifications
+## 9. Project Architecture
+React Frontend
+↓
+FastAPI Backend
+↓
+Google Gemini AI
+↓
+PostgreSQL Database
+↓
+APScheduler
+↓
+Notification Engine
+
+## 10. Technologies Used
+
+**Frontend**
+- React.js
+- Tailwind CSS
+- Axios
+
+**Backend**
+- FastAPI
+- Python
+- SQLAlchemy
+- PostgreSQL
+- Alembic
+- APScheduler
+
+**AI**
+- Google Gemini Vision
+- Google Gemini AI
+
+## 11. Milestone 3 Achievements
+- [x] Google Gemini Vision Integration
+- [x] AI Medicine Validation
+- [x] Prescription Analysis
+- [x] Refill Prediction
+- [x] Dosage Analysis
+- [x] Refill Notifications
+- [x] Medication Adherence Analytics
+- [x] Background Scheduler
+- [x] REST APIs
+- [x] PostgreSQL Integration

@@ -11,6 +11,9 @@ from fastapi.responses import JSONResponse
 
 from app.database import engine, Base, SessionLocal
 from app.models.user_models import Role, User, NotificationSetting
+from app.models.refill_models import RefillPrediction
+from app.models.dosage_analysis_models import DosageAnalysisResult
+from app.scheduler import start_scheduler
 from app.utils.security import get_password_hash
 from app.routers import auth_router, users_router, admin_router, medicines_router, notifications_router, medicine_master_router, ocr_router, drug_interactions_router, reports_router, emergency_card_router, insights_router
 
@@ -324,6 +327,13 @@ async def lifespan(app: FastAPI):
     finally:
         db.close()
 
+    # 4. Start APScheduler (after DB is confirmed ready)
+    try:
+        start_scheduler(app_logger)
+        app_logger.info("APScheduler started successfully.")
+    except Exception as sched_err:
+        app_logger.error(f"APScheduler failed to start: {sched_err}")
+
     app_logger.info("=" * 60)
     app_logger.info(" PillSync API is READY — Listening for requests...")
     app_logger.info(" Docs: http://127.0.0.1:8000/docs")
@@ -449,6 +459,10 @@ app.include_router(drug_interactions_router, prefix="/api")
 app.include_router(reports_router, prefix="/api")
 app.include_router(emergency_card_router, prefix="/api")
 app.include_router(insights_router, prefix="/api")
+
+# Milestone-3 specific routes
+from app.routers.milestone3 import router as milestone3_router
+app.include_router(milestone3_router)
 
 
 
