@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Text, DateTime, Date, func
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Text, DateTime, Date, func, Float
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -28,6 +28,9 @@ class User(Base):
     medication_histories = relationship("MedicationHistory", back_populates="user", cascade="all, delete-orphan")
     notification_setting = relationship("NotificationSetting", back_populates="user", uselist=False, cascade="all, delete-orphan")
     notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")
+    emergency_card = relationship("EmergencyCard", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    doctor_profile = relationship("DoctorProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    ocr_records = relationship("OCRRecord", back_populates="user", cascade="all, delete-orphan")
 
 
 
@@ -48,8 +51,10 @@ class PatientProfile(Base):
     notification_preference = Column(String(50), default="browser")
     reminder_status = Column(String(50), nullable=True)
     delivery_status = Column(String(50), nullable=True)
+    caregiver_id = Column(Integer, ForeignKey("caregiver_profiles.id", ondelete="SET NULL"), nullable=True)
 
     user = relationship("User", back_populates="patient_profile")
+    caregiver = relationship("CaregiverProfile", back_populates="assigned_patients")
 
 
 class CaregiverProfile(Base):
@@ -63,8 +68,12 @@ class CaregiverProfile(Base):
     gender = Column(String(20), nullable=True)
     address = Column(Text, nullable=True)
     account_status = Column(String(20), default="Active")
+    emergency_contact = Column(String(100), nullable=True)
+    emergency_phone = Column(String(20), nullable=True)
+    profile_photo = Column(Text, nullable=True)
 
     user = relationship("User", back_populates="caregiver_profile")
+    assigned_patients = relationship("PatientProfile", back_populates="caregiver")
 
 
 class Medicine(Base):
@@ -73,6 +82,9 @@ class Medicine(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     name = Column(String(100), nullable=False)
+    generic_name = Column(String(150), nullable=True)
+    validation_source = Column(String(50), default="gemini")
+    confidence = Column(Float, nullable=True)
     dosage = Column(String(50), nullable=False)
     quantity = Column(Integer, nullable=False)
     frequency = Column(String(50), nullable=False)
@@ -148,6 +160,17 @@ class Notification(Base):
     created_at = Column(DateTime, default=func.now())
 
     user = relationship("User", back_populates="notifications")
+
+
+class PasswordResetToken(Base):
+    __tablename__ = "password_reset_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String(150), nullable=False, index=True)
+    otp_code = Column(String(6), nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    used = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=func.now())
 
 
 

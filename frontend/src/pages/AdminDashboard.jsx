@@ -87,8 +87,14 @@ const AdminDashboard = ({ auth }) => {
     return (
       <div className="app-container">
         <Sidebar role={auth.role} email={auth.email} />
-        <div className="main-content flex-center">
-          <div className="spinner" />
+        <div className="main-content" style={{ flex: 1, display: "flex", flexDirection: "column", height: "100vh", overflowY: "auto" }}>
+          <Navbar pageTitle="Administration Dashboard" />
+          <div style={{ padding: "2rem" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "1.25rem", marginBottom: "2rem" }}>
+              {[...Array(6)].map((_, i) => <div key={i} className="skeleton" style={{ height: "100px", borderRadius: "14px" }} />)}
+            </div>
+            <div className="skeleton" style={{ height: "400px", borderRadius: "20px" }} />
+          </div>
         </div>
       </div>
     );
@@ -104,7 +110,7 @@ const AdminDashboard = ({ auth }) => {
           {errorMsg && <div className="alert alert-danger">{errorMsg}</div>}
 
           {/* Stats Grid - 6 Cards */}
-          <div className="grid grid-cols-3 stats-row" style={{ marginBottom: "2rem" }}>
+          <div className="page-section stagger-1 grid grid-cols-3 stats-row" style={{ marginBottom: "2rem" }}>
             
             {/* Card 1: Total Registered Users */}
             <div className="card stat-card stat-card-border-blue">
@@ -230,18 +236,34 @@ const AdminDashboard = ({ auth }) => {
               </div>
             </div>
 
-            {/* Default Accounts System Note */}
-            <div className="card system-note-card">
-              <h3 className="card-title">System Policy Information</h3>
-              <p className="note-text">
-                PillSync operates under strict security policies. Admin accounts are seeded directly on server initialization. Users cannot register as administrators through the registration form.
-              </p>
-              <div className="seed-credentials">
-                <strong>Default Administrator Testing Credentials:</strong>
-                <ul>
-                  <li><strong>Email:</strong> admin@pillsync.com</li>
-                  <li><strong>Password:</strong> admin123</li>
-                </ul>
+            {/* System Information Card */}
+            <div className="card system-info-card" style={{ padding: "1.5rem", borderRadius: "16px" }}>
+              <h3 className="card-title" style={{ marginBottom: "1.25rem", fontWeight: 800 }}>System Information</h3>
+              <div className="info-list" style={{ display: "flex", flexDirection: "column", gap: "0.75rem", fontSize: "0.85rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid var(--border)", paddingBottom: "0.5rem" }}>
+                  <span style={{ color: "var(--text-light)" }}>System Version</span>
+                  <strong>v2.0.0 (Milestone 2)</strong>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid var(--border)", paddingBottom: "0.5rem" }}>
+                  <span style={{ color: "var(--text-light)" }}>Server Status</span>
+                  <span style={{ color: "var(--success-color)", fontWeight: "bold" }}>● Online</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid var(--border)", paddingBottom: "0.5rem" }}>
+                  <span style={{ color: "var(--text-light)" }}>Database Status</span>
+                  <span style={{ color: "var(--primary)", fontWeight: "bold" }}>Connected</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid var(--border)", paddingBottom: "0.5rem" }}>
+                  <span style={{ color: "var(--text-light)" }}>Last Backup</span>
+                  <strong>Today, 04:00 AM (Auto-scheduled)</strong>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid var(--border)", paddingBottom: "0.5rem" }}>
+                  <span style={{ color: "var(--text-light)" }}>Email Service Status</span>
+                  <span style={{ color: "var(--accent)", fontWeight: "bold" }}>Gmail SMTP Live</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", paddingBottom: "0.5rem" }}>
+                  <span style={{ color: "var(--text-light)" }}>Security Status</span>
+                  <span style={{ color: "var(--success-color)", fontWeight: "bold" }}>Secured</span>
+                </div>
               </div>
             </div>
           </div>

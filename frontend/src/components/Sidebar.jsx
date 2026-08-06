@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   LayoutDashboard, User, Bell, LogOut, Activity, Users,
-  Pill, Shield, Settings, ChevronRight,
+  Pill, Shield, Settings, ChevronRight, Clock, BarChart2, ShieldAlert, Sparkles,
 } from "lucide-react";
 import { authService } from "../services/api";
 
@@ -13,17 +13,24 @@ const getLinks = (role) => {
       return [
         { path: "/admin-dashboard",   label: "Dashboard",      icon: <LayoutDashboard size={18} /> },
         { path: "/profile",           label: "Admin Profile",  icon: <User size={18} /> },
+        { path: "/reports",           label: "Analytics & Reports", icon: <BarChart2 size={18} /> },
       ];
     case "patient":
       return [
         { path: "/patient-dashboard",     label: "Dashboard",              icon: <LayoutDashboard size={18} /> },
+        { path: "/ocr-history",           label: "Prescription OCR",       icon: <Sparkles size={18} /> },
+        { path: "/reports",               label: "Reports & Analytics",    icon: <BarChart2 size={18} /> },
+        { path: "/notifications-center",  label: "Notification Center",   icon: <Bell size={18} /> },
+        { path: "/emergency-card",        label: "Emergency Medical Card", icon: <ShieldAlert size={18} /> },
         { path: "/profile",               label: "My Profile",             icon: <User size={18} /> },
-        { path: "/notifications-settings",label: "Notification Settings",  icon: <Bell size={18} /> },
+        { path: "/notifications-settings",label: "Notification Settings",  icon: <Settings size={18} /> },
       ];
     case "caregiver":
       return [
-        { path: "/caregiver-dashboard", label: "Dashboard",  icon: <LayoutDashboard size={18} /> },
-        { path: "/profile",             label: "My Profile", icon: <User size={18} /> },
+        { path: "/caregiver-dashboard", label: "Dashboard",            icon: <LayoutDashboard size={18} /> },
+        { path: "/reports",             label: "Patient Reports",      icon: <BarChart2 size={18} /> },
+        { path: "/emergency-card",      label: "Emergency Card",       icon: <ShieldAlert size={18} /> },
+        { path: "/profile",             label: "My Profile",           icon: <User size={18} /> },
       ];
     default:
       return [];

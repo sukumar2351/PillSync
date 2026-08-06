@@ -75,6 +75,21 @@ export const authService = {
     const response = await api.get("/auth/me");
     return response.data;
   },
+
+  forgotPassword: async (email) => {
+    const response = await api.post("/auth/forgot-password", { email });
+    return response.data;
+  },
+
+  verifyOtp: async (email, otp) => {
+    const response = await api.post("/auth/verify-otp", { email, otp });
+    return response.data;
+  },
+
+  resetPassword: async (email, otp, password) => {
+    const response = await api.post("/auth/reset-password", { email, otp, password });
+    return response.data;
+  },
 };
 
 export const userService = {
@@ -167,6 +182,152 @@ export const medicineService = {
 
   sendTestEmail: async () => {
     const response = await api.post("/users/profile/notifications/test-email");
+    return response.data;
+  },
+};
+
+export const caregiverService = {
+  getAssignedPatients: async () => {
+    const response = await api.get("/caregivers/patients");
+    return response.data;
+  },
+
+  getPatientsHistory: async () => {
+    const response = await api.get("/caregivers/patients/history");
+    return response.data;
+  },
+
+  getDashboardSummary: async () => {
+    const response = await api.get("/caregivers/dashboard/summary");
+    return response.data;
+  },
+
+  getDetailedPatientHistory: async (patientId) => {
+    const response = await api.get(`/caregiver/patient/${patientId}/history`);
+    return response.data;
+  },
+
+  updateCaregiverProfile: async (profileData) => {
+    const response = await api.put("/caregiver/profile", profileData);
+    return response.data;
+  },
+
+  patchCaregiverProfile: async (profileData) => {
+    const response = await api.patch("/caregiver/profile", profileData);
+    return response.data;
+  },
+};
+
+export const medicineMasterService = {
+  search: async (query) => {
+    const response = await api.get(`/medicine-master/search?q=${encodeURIComponent(query)}`);
+    return response.data;
+  },
+  getApproved: async () => {
+    const response = await api.get("/medicine-master/");
+    return response.data;
+  },
+  getPending: async () => {
+    const response = await api.get("/medicine-master/pending");
+    return response.data;
+  },
+  requestMedicine: async (data) => {
+    const response = await api.post("/medicine-master/request", data);
+    return response.data;
+  },
+  approveMedicine: async (id) => {
+    const response = await api.put(`/medicine-master/${id}/approve`);
+    return response.data;
+  },
+  createDirect: async (data) => {
+    const response = await api.post("/medicine-master/", data);
+    return response.data;
+  },
+};
+
+export const ocrService = {
+  uploadFile: async (file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    const response = await api.post("/ocr/upload", formData, {
+      headers: { "Content-Type": "multipart/form-data" }
+    });
+    return response.data;
+  },
+  extractPrescription: async (savedPath = null, file = null) => {
+    if (file) {
+      const formData = new FormData();
+      formData.append("file", file);
+      const url = savedPath ? `/ocr/extract?saved_path=${encodeURIComponent(savedPath)}` : "/ocr/extract";
+      const response = await api.post(url, formData, {
+        headers: { "Content-Type": "multipart/form-data" }
+      });
+      return response.data;
+    }
+    const url = savedPath ? `/ocr/extract?saved_path=${encodeURIComponent(savedPath)}` : "/ocr/extract";
+    const response = await api.post(url);
+    return response.data;
+  },
+  saveMedicines: async (medicinesList, fileMeta = {}) => {
+    const response = await api.post("/ocr/save-medicines", {
+      filename: fileMeta.filename || "prescription.jpg",
+      file_type: fileMeta.file_type || "JPG",
+      file_size_bytes: fileMeta.file_size_bytes || 0,
+      medicines: medicinesList
+    });
+    return response.data;
+  },
+  getHistory: async () => {
+    const response = await api.get("/ocr/history");
+    return response.data;
+  },
+  getRecordDetail: async (id) => {
+    const response = await api.get(`/ocr/history/${id}`);
+    return response.data;
+  },
+};
+
+export const drugInteractionService = {
+  checkInteractions: async (medicineName) => {
+    const response = await api.post("/drug-interactions/check", { medicine_name: medicineName });
+    return response.data;
+  },
+};
+
+export const reportsService = {
+  getSummary: async (patientId = null) => {
+    const url = patientId ? `/reports/summary?patient_id=${patientId}` : "/reports/summary";
+    const response = await api.get(url);
+    return response.data;
+  },
+  getDailyAdherence: async (days = 30, patientId = null) => {
+    const url = patientId ? `/reports/adherence/daily?days=${days}&patient_id=${patientId}` : `/reports/adherence/daily?days=${days}`;
+    const response = await api.get(url);
+    return response.data;
+  },
+  getWeeklyAdherence: async (weeks = 12, patientId = null) => {
+    const url = patientId ? `/reports/adherence/weekly?weeks=${weeks}&patient_id=${patientId}` : `/reports/adherence/weekly?weeks=${weeks}`;
+    const response = await api.get(url);
+    return response.data;
+  },
+};
+
+export const emergencyCardService = {
+  getCard: async (patientId = null) => {
+    const url = patientId ? `/emergency-card/?patient_id=${patientId}` : "/emergency-card/";
+    const response = await api.get(url);
+    return response.data;
+  },
+  updateCard: async (data) => {
+    const response = await api.post("/emergency-card/", data);
+    return response.data;
+  },
+};
+
+export const insightsService = {
+  getInsights: async (patientId = null) => {
+    const url = patientId ? `/insights/?patient_id=${patientId}` : "/insights/";
+    const response = await api.get(url);
     return response.data;
   },
 };

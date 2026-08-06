@@ -43,11 +43,20 @@ def update_caregiver_profile(db: Session, user: User, data: CaregiverProfileUpda
         db.add(profile)
         db.flush()
 
+    if data.email and data.email != user.email:
+        existing_user = db.query(User).filter(User.email == data.email).first()
+        if existing_user and existing_user.id != user.id:
+            raise ValueError("Email address is already in use by another account.")
+        user.email = data.email
+
     profile.full_name = data.full_name
     profile.phone = data.phone
     profile.age = data.age
     profile.gender = data.gender
     profile.address = data.address
+    profile.emergency_contact = data.emergency_contact
+    profile.emergency_phone = data.emergency_phone
+    profile.profile_photo = data.profile_photo
 
     db.commit()
     db.refresh(profile)

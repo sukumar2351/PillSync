@@ -79,6 +79,7 @@ class PatientProfileResponse(BaseModel):
     address: Optional[str] = None
     emergency_contact: Optional[str] = None
     account_status: str
+    caregiver_name: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -92,6 +93,9 @@ class CaregiverProfileResponse(BaseModel):
     gender: Optional[str] = None
     address: Optional[str] = None
     account_status: str
+    emergency_contact: Optional[str] = None
+    emergency_phone: Optional[str] = None
+    profile_photo: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -147,10 +151,14 @@ class PatientProfileUpdate(BaseModel):
 
 class CaregiverProfileUpdate(BaseModel):
     full_name: str = Field(..., min_length=2, max_length=100)
+    email: Optional[EmailStr] = None
     phone: Optional[str] = None
     age: Optional[int] = None
     gender: Optional[str] = None
     address: Optional[str] = None
+    emergency_contact: Optional[str] = None
+    emergency_phone: Optional[str] = None
+    profile_photo: Optional[str] = None
 
     @field_validator("phone")
     @classmethod
@@ -211,6 +219,9 @@ from datetime import date
 
 class MedicineCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
+    generic_name: Optional[str] = None
+    validation_source: str = "gemini"
+    confidence: Optional[float] = None
     dosage: str = Field(..., min_length=1, max_length=50)
     quantity: int = Field(..., gt=0)
     frequency: str = Field(..., min_length=1, max_length=50)
@@ -221,6 +232,7 @@ class MedicineCreate(BaseModel):
     start_date: date
     end_date: date
     notes: Optional[str] = None
+    reminder_times: List[str] = []
 
     @field_validator("food_relation")
     @classmethod
@@ -232,13 +244,14 @@ class MedicineCreate(BaseModel):
 
 
 class MedicineUpdate(BaseModel):
-    name: Optional[str] = Field(None, min_length=1, max_length=100)
-    dosage: Optional[str] = Field(None, min_length=1, max_length=50)
-    quantity: Optional[int] = Field(None, gt=0)
-    frequency: Optional[str] = Field(None, min_length=1, max_length=50)
-    morning: Optional[bool] = None
-    afternoon: Optional[bool] = None
-    night: Optional[bool] = None
+    name: Optional[str] = None
+    generic_name: Optional[str] = None
+    validation_source: Optional[str] = None
+    confidence: Optional[float] = None
+    dosage: Optional[str] = None
+    quantity: Optional[int] = None
+    frequency: Optional[str] = None
+    reminder_times: Optional[List[str]] = None
     food_relation: Optional[str] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
@@ -269,6 +282,9 @@ class MedicineResponse(BaseModel):
     id: int
     user_id: int
     name: str
+    generic_name: Optional[str] = None
+    validation_source: Optional[str] = None
+    confidence: Optional[float] = None
     dosage: str
     quantity: int
     frequency: str

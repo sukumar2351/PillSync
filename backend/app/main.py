@@ -11,8 +11,11 @@ from fastapi.responses import JSONResponse
 
 from app.database import engine, Base, SessionLocal
 from app.models.user_models import Role, User, NotificationSetting
+from app.models.refill_models import RefillPrediction
+from app.models.dosage_analysis_models import DosageAnalysisResult
+from app.scheduler import start_scheduler
 from app.utils.security import get_password_hash
-from app.routers import auth_router, users_router, admin_router, medicines_router, notifications_router
+from app.routers import auth_router, users_router, admin_router, medicines_router, notifications_router, medicine_master_router, ocr_router, drug_interactions_router, reports_router, emergency_card_router, insights_router
 
 
 
@@ -202,6 +205,12 @@ def seed_sample_data(db):
         db.add(user)
         db.flush()
 
+        # Resolve caregiver_id dynamically
+        cg_id = None
+        cg_user = db.query(User).join(CaregiverProfile).filter(CaregiverProfile.full_name == caregiver_name).first()
+        if cg_user and cg_user.caregiver_profile:
+            cg_id = cg_user.caregiver_profile.id
+
         profile = PatientProfile(
             user_id=user.id,
             full_name=name,
@@ -210,7 +219,8 @@ def seed_sample_data(db):
             gender=gender,
             blood_group=blood,
             address=f"Plot {idx+20}, Sector {idx%4 + 1}, Jubilee Hills, Hyderabad, Telangana",
-            emergency_contact=f"{caregiver_name} (Caregiver: +91 98765 43200)"
+            emergency_contact=f"{caregiver_name} (Caregiver: +91 98765 43200)",
+            caregiver_id=cg_id
         )
         db.add(profile)
 
@@ -252,6 +262,23 @@ async def lifespan(app: FastAPI):
         db.execute(text("ALTER TABLE notification_settings ADD COLUMN IF NOT EXISTS email_recipient VARCHAR(255);"))
         db.execute(text("ALTER TABLE notification_settings ADD COLUMN IF NOT EXISTS use_primary_email BOOLEAN DEFAULT TRUE;"))
         db.execute(text("ALTER TABLE notification_settings ADD COLUMN IF NOT EXISTS reminder_email VARCHAR(255);"))
+        
+        # Caregiver modifications
+        db.execute(text("ALTER TABLE caregiver_profiles ADD COLUMN IF NOT EXISTS emergency_contact VARCHAR(100);"))
+        db.execute(text("ALTER TABLE caregiver_profiles ADD COLUMN IF NOT EXISTS emergency_phone VARCHAR(20);"))
+        db.execute(text("ALTER TABLE caregiver_profiles ADD COLUMN IF NOT EXISTS profile_photo TEXT;"))
+        db.execute(text("ALTER TABLE patient_profiles ADD COLUMN IF NOT EXISTS caregiver_id INTEGER REFERENCES caregiver_profiles(id) ON DELETE SET NULL;"))
+        db.execute(text("""
+            CREATE TABLE IF NOT EXISTS password_reset_tokens (
+                id SERIAL PRIMARY KEY,
+                email VARCHAR(150) NOT NULL,
+                otp_code VARCHAR(6) NOT NULL,
+                expires_at TIMESTAMP NOT NULL,
+                used BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+        """))
+        
         db.commit()
         app_logger.info("Schema migrations applied successfully.")
     except Exception as migration_err:
@@ -289,12 +316,23 @@ async def lifespan(app: FastAPI):
 
         seed_sample_data(db)
 
+        # Seed medicine master + drug interactions
+        from app.seed_medicine_master import seed_medicine_master_data
+        seed_medicine_master_data(db)
+
     except Exception as e:
         db.rollback()
         app_logger.error(f"Database seeding failed: {e}")
         app_logger.error(traceback.format_exc())
     finally:
         db.close()
+
+    # 4. Start APScheduler (after DB is confirmed ready)
+    try:
+        start_scheduler(app_logger)
+        app_logger.info("APScheduler started successfully.")
+    except Exception as sched_err:
+        app_logger.error(f"APScheduler failed to start: {sched_err}")
 
     app_logger.info("=" * 60)
     app_logger.info(" PillSync API is READY — Listening for requests...")
@@ -406,11 +444,25 @@ async def global_exception_handler(request: Request, exc: Exception):
 # ============================================================
 # ROUTERS
 # ============================================================
+from app.routers.caregiver import router as caregiver_router, singular_router as caregiver_singular_router
+
 app.include_router(auth_router, prefix="/api")
 app.include_router(users_router, prefix="/api")
 app.include_router(admin_router, prefix="/api")
 app.include_router(medicines_router, prefix="/api")
 app.include_router(notifications_router, prefix="/api")
+app.include_router(caregiver_router, prefix="/api")
+app.include_router(caregiver_singular_router, prefix="/api")
+app.include_router(medicine_master_router, prefix="/api")
+app.include_router(ocr_router, prefix="/api")
+app.include_router(drug_interactions_router, prefix="/api")
+app.include_router(reports_router, prefix="/api")
+app.include_router(emergency_card_router, prefix="/api")
+app.include_router(insights_router, prefix="/api")
+
+# Milestone-3 specific routes
+from app.routers.milestone3 import router as milestone3_router
+app.include_router(milestone3_router)
 
 
 
@@ -418,7 +470,7 @@ app.include_router(notifications_router, prefix="/api")
 def read_root():
     return {
         "project": "PillSync",
-        "milestone": 2,
+        "milestone": 3,
         "status": "online",
         "documentation": "/docs"
     }

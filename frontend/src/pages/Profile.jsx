@@ -1,22 +1,17 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence, useSpring, useTransform } from "framer-motion";
-import { authService, userService } from "../services/api";
+import { authService, userService, caregiverService } from "../services/api";
 import Sidebar from "../components/Sidebar";
 import Navbar from "../components/Navbar";
 
-// ── Form Input Wrapper (with staggers, 3D lift, and focus glow scaling) ──
-const AnimatedFormGroup = ({ children, delay, error }) => {
+// ── Form Input Wrapper (Static, responsive and focus glow scaling) ──
+const AnimatedFormGroup = ({ children, error }) => {
   const [isFocused, setIsFocused] = useState(false);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 30, scale: 0.97 }}
-      whileInView={{ opacity: 1, y: 0, scale: 1 }}
-      viewport={{ once: true, margin: "-20px" }}
-      transition={{ duration: 0.7, delay, ease: "easeOut" }}
+    <div
       onFocusCapture={() => setIsFocused(true)}
       onBlurCapture={() => setIsFocused(false)}
-      whileHover={{ y: -2, transition: { duration: 0.2 } }}
       style={{
         display: "flex",
         flexDirection: "column",
@@ -29,38 +24,16 @@ const AnimatedFormGroup = ({ children, delay, error }) => {
       className={error ? "shake-error" : ""}
     >
       {children}
-    </motion.div>
+    </div>
   );
 };
 
 // ── Letter Stagger for the Header Title ──
 const StaggeredTitle = ({ text }) => {
-  const letters = Array.from(text);
-  const container = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: { staggerChildren: 0.05, delayChildren: 0.1 }
-    }
-  };
-  const item = {
-    hidden: { opacity: 0, y: 12, filter: "blur(4px)" },
-    visible: { opacity: 1, y: 0, filter: "blur(0px)", transition: { duration: 0.5 } }
-  };
-
   return (
-    <motion.h2
-      variants={container}
-      initial="hidden"
-      animate="visible"
-      style={{ fontSize: "1.85rem", fontWeight: 900, margin: 0, color: "var(--text-primary)", letterSpacing: "-0.03em" }}
-    >
-      {letters.map((char, idx) => (
-        <motion.span key={idx} variants={item} style={{ display: "inline-block" }}>
-          {char === " " ? "\u00A0" : char}
-        </motion.span>
-      ))}
-    </motion.h2>
+    <h2 style={{ fontSize: "1.85rem", fontWeight: 900, margin: 0, color: "var(--text-primary)", letterSpacing: "-0.03em" }}>
+      {text}
+    </h2>
   );
 };
 
@@ -76,6 +49,8 @@ const Profile = ({ auth }) => {
   const [bloodGroup, setBloodGroup] = useState("");
   const [address, setAddress] = useState("");
   const [emergencyContact, setEmergencyContact] = useState("");
+  const [emergencyPhone, setEmergencyPhone] = useState("");
+  const [profilePhoto, setProfilePhoto] = useState("");
 
   // Loading & notification states
   const [isLoading, setIsLoading] = useState(true);
@@ -138,6 +113,8 @@ const Profile = ({ auth }) => {
         setBloodGroup(profile.blood_group || "");
         setAddress(profile.address || "");
         setEmergencyContact(profile.emergency_contact || "");
+        setEmergencyPhone(profile.emergency_phone || "");
+        setProfilePhoto(profile.profile_photo || "");
       } catch (err) {
         setErrorMsg("Failed to load user profile details.");
       } finally {
@@ -175,9 +152,24 @@ const Profile = ({ auth }) => {
       }
     }
 
-    if (auth.role === "patient" && emergencyContact) {
+    if (auth.role === "caregiver") {
+      if (!userEmail.trim()) {
+        tempErrors.email = "Email is required";
+      } else if (!/\S+@\S+\.\S+/.test(userEmail)) {
+        tempErrors.email = "Please enter a valid email address";
+      }
+    }
+
+    if (emergencyContact) {
       if (emergencyContact.trim().length < 2) {
         tempErrors.emergencyContact = "Emergency contact detail must be at least 2 characters";
+      }
+    }
+
+    if (emergencyPhone) {
+      const cleanEmerPhone = emergencyPhone.replace(/[\s\-\(\)\+]/g, "");
+      if (!/^\d+$/.test(cleanEmerPhone) || cleanEmerPhone.length < 10 || cleanEmerPhone.length > 15) {
+        tempErrors.emergencyPhone = "Emergency phone must contain between 10 and 15 digits";
       }
     }
 
@@ -205,9 +197,16 @@ const Profile = ({ auth }) => {
       if (auth.role === "patient") {
         updatePayload.blood_group = bloodGroup.toUpperCase() || null;
         updatePayload.emergency_contact = emergencyContact || null;
+        await userService.updateProfile(updatePayload);
+      } else if (auth.role === "caregiver") {
+        updatePayload.email = userEmail;
+        updatePayload.emergency_contact = emergencyContact || null;
+        updatePayload.emergency_phone = emergencyPhone || null;
+        updatePayload.profile_photo = profilePhoto || null;
+        await caregiverService.updateCaregiverProfile(updatePayload);
+        localStorage.setItem("email", userEmail);
       }
 
-      await userService.updateProfile(updatePayload);
       setSuccessMsg("Profile saved successfully!");
       
       // Update local profile representation
@@ -278,14 +277,9 @@ const Profile = ({ auth }) => {
           {/* Header Title Block */}
           <div style={{ marginBottom: "2rem", position: "relative", zIndex: 2 }}>
             <StaggeredTitle text="Manage Profile" />
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.6, duration: 1.0 }}
-              style={{ fontSize: "0.85rem", color: "var(--text-light)", marginTop: "0.35rem" }}
-            >
+            <p style={{ fontSize: "0.85rem", color: "var(--text-light)", marginTop: "0.35rem" }}>
               Update your health settings and personal metadata record. Last sync: Monday, July 20, 2026.
-            </motion.p>
+            </p>
           </div>
 
           {/* Success Toast */}
@@ -333,35 +327,24 @@ const Profile = ({ auth }) => {
             )}
           </AnimatePresence>
 
-          {/* 3D Perspective Card Wrapper */}
-          <div style={{ perspective: 1200, width: "100%", position: "relative", zIndex: 2 }}>
-            <motion.div
-              ref={cardRef}
-              onMouseMove={handleMouseMove}
-              onMouseLeave={handleMouseLeave}
-              initial={{ opacity: 0, y: 40, scale: 0.94, rotateX: 10 }}
-              animate={{ opacity: 1, y: 0, scale: 1, rotateX: 0 }}
-              transition={{ duration: 1.0, ease: "easeOut" }}
+          {/* Static Glassmorphic Card Wrapper */}
+          <div style={{ width: "100%", position: "relative", zIndex: 2 }}>
+            <div
               style={{
-                transformStyle: "preserve-3d",
-                rotateX,
-                rotateY,
-                translateZ,
                 background: "var(--bg-card)",
                 border: "1px solid var(--border)",
                 boxShadow: "0 25px 50px -12px rgba(0,0,0,0.06), 0 0 40px rgba(37,99,235,0.02)",
                 borderRadius: "24px",
                 padding: "2.5rem",
                 backdropFilter: "blur(16px)",
-                WebkitBackdropFilter: "blur(16px)",
-                cursor: "pointer"
+                WebkitBackdropFilter: "blur(16px)"
               }}
             >
-              <h3 className="card-title" style={{ fontWeight: 850, fontSize: "1.15rem", marginBottom: "2rem", letterSpacing: "-0.01em", transform: "translateZ(30px)" }}>
+              <h3 className="card-title" style={{ fontWeight: 850, fontSize: "1.15rem", marginBottom: "2rem", letterSpacing: "-0.01em" }}>
                 Personal Metadata Editor
               </h3>
               
-              <form onSubmit={handleSave} noValidate style={{ transform: "translateZ(15px)", transformStyle: "preserve-3d" }}>
+              <form onSubmit={handleSave} noValidate>
                 <div className="grid grid-cols-2" style={{ gap: "1.5rem" }}>
                   
                   {/* Full Name */}
@@ -380,23 +363,25 @@ const Profile = ({ auth }) => {
                     {errors.fullName && <div className="form-error-msg">{errors.fullName}</div>}
                   </AnimatedFormGroup>
 
-                  {/* Email (Read Only) */}
-                  <AnimatedFormGroup delay={0.16}>
-                    <label className="form-label" htmlFor="email-readonly">
-                      Email Address (Primary)
+                  {/* Email */}
+                  <AnimatedFormGroup delay={0.16} error={errors.email}>
+                    <label className="form-label" htmlFor="email-input">
+                      Email Address (Primary) <span style={{ color: "var(--error-color)" }}>*</span>
                     </label>
                     <input
-                      id="email-readonly"
-                      type="text"
-                      className="form-input profile-input-element"
+                      id="email-input"
+                      type="email"
+                      className={`form-input profile-input-element ${errors.email ? "is-invalid" : ""}`}
                       value={userEmail}
-                      disabled={true}
-                      style={{
+                      onChange={(e) => setUserEmail(e.target.value)}
+                      disabled={isSaving || auth.role !== "caregiver"}
+                      style={auth.role !== "caregiver" ? {
                         backgroundColor: "var(--bg-secondary)",
                         cursor: "not-allowed",
                         opacity: 0.7
-                      }}
+                      } : {}}
                     />
+                    {errors.email && <div className="form-error-msg">{errors.email}</div>}
                   </AnimatedFormGroup>
 
                   {/* Phone */}
@@ -489,6 +474,62 @@ const Profile = ({ auth }) => {
                       {errors.emergencyContact && <div className="form-error-msg">{errors.emergencyContact}</div>}
                     </AnimatedFormGroup>
                   )}
+
+                  {/* Caregiver specific: Emergency Contact */}
+                  {auth.role === "caregiver" && (
+                    <AnimatedFormGroup delay={0.48} error={errors.emergencyContact}>
+                      <label className="form-label" htmlFor="emergency-input">
+                        Emergency Contact
+                      </label>
+                      <input
+                        id="emergency-input"
+                        type="text"
+                        className={`form-input profile-input-element ${errors.emergencyContact ? "is-invalid" : ""}`}
+                        placeholder="e.g. Spouse Name"
+                        value={emergencyContact}
+                        onChange={(e) => setEmergencyContact(e.target.value)}
+                        disabled={isSaving}
+                      />
+                      {errors.emergencyContact && <div className="form-error-msg">{errors.emergencyContact}</div>}
+                    </AnimatedFormGroup>
+                  )}
+
+                  {/* Caregiver specific: Emergency Phone */}
+                  {auth.role === "caregiver" && (
+                    <AnimatedFormGroup delay={0.52} error={errors.emergencyPhone}>
+                      <label className="form-label" htmlFor="emergency-phone-input">
+                        Emergency Phone Number
+                      </label>
+                      <input
+                        id="emergency-phone-input"
+                        type="text"
+                        className={`form-input profile-input-element ${errors.emergencyPhone ? "is-invalid" : ""}`}
+                        placeholder="e.g. +91 98765 43210"
+                        value={emergencyPhone}
+                        onChange={(e) => setEmergencyPhone(e.target.value)}
+                        disabled={isSaving}
+                      />
+                      {errors.emergencyPhone && <div className="form-error-msg">{errors.emergencyPhone}</div>}
+                    </AnimatedFormGroup>
+                  )}
+
+                  {/* Caregiver specific: Profile Photo URL */}
+                  {auth.role === "caregiver" && (
+                    <AnimatedFormGroup delay={0.56}>
+                      <label className="form-label" htmlFor="photo-input">
+                        Profile Photo URL
+                      </label>
+                      <input
+                        id="photo-input"
+                        type="text"
+                        className="form-input profile-input-element"
+                        placeholder="e.g. https://example.com/avatar.jpg"
+                        value={profilePhoto}
+                        onChange={(e) => setProfilePhoto(e.target.value)}
+                        disabled={isSaving}
+                      />
+                    </AnimatedFormGroup>
+                  )}
                 </div>
 
                 {/* Address (Full Width) */}
@@ -535,7 +576,7 @@ const Profile = ({ auth }) => {
                   </motion.button>
                 </div>
               </form>
-            </motion.div>
+            </div>
           </div>
         </main>
       </div>

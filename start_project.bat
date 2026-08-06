@@ -230,11 +230,24 @@ echo  [1b] Detected WSL IP: !WSL_IP!
 
 REM Terminate existing proxies if any
 taskkill /F /FI "WINDOWTITLE eq PillSync Postgres Proxy" >nul 2>&1
+taskkill /F /IM wslrelay.exe >nul 2>&1
+
+REM Write the proxy helper script dynamically to ensure it uses the correct current WSL IP
+echo const net = require('net'); > "!PROJ!\backend\proxy_helper.js"
+echo const s = net.createServer((c) => { >> "!PROJ!\backend\proxy_helper.js"
+echo   const r = net.connect(5432, '!WSL_IP!', () => { >> "!PROJ!\backend\proxy_helper.js"
+echo     c.pipe(r); >> "!PROJ!\backend\proxy_helper.js"
+echo     r.pipe(c); >> "!PROJ!\backend\proxy_helper.js"
+echo   }); >> "!PROJ!\backend\proxy_helper.js"
+echo   c.on('error', () => r.destroy()); >> "!PROJ!\backend\proxy_helper.js"
+echo   r.on('error', () => c.destroy()); >> "!PROJ!\backend\proxy_helper.js"
+echo }); >> "!PROJ!\backend\proxy_helper.js"
+echo s.listen(5432, '127.0.0.1', () => console.log('Proxy 5432 OK')); >> "!PROJ!\backend\proxy_helper.js"
 
 REM Start background node proxy
-start "PillSync Postgres Proxy" /min node -e "const net = require('net'); const s = net.createServer((c) => { const r = net.connect(5432, '!WSL_IP!', () => { c.pipe(r); r.pipe(c); }); c.on('error', () => r.destroy()); r.on('error', () => c.destroy()); }); s.listen(5432, '127.0.0.1', () => console.log('Proxy 5432 OK'));"
+start "PillSync Postgres Proxy" /min node "!PROJ!\backend\proxy_helper.js"
 
-timeout /t 2 /nobreak > nul
+timeout /t 3 /nobreak > nul
 
 REM =====================================================================
 REM  STAGE 2: RUN DATABASE MIGRATIONS (HANDLED VIA APP LIFESPAN STARTUP)

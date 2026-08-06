@@ -1,145 +1,116 @@
 import React, { useEffect, useState } from "react";
-import { authService, medicineService } from "../services/api";
+import { authService, caregiverService } from "../services/api";
 import Sidebar from "../components/Sidebar";
 import Navbar from "../components/Navbar";
-
-// Realistic Indian Patients mappings assigned to each of the 10 Caregivers
-const caregiverPatientAssignments = {
-  "Ramesh Kumar": [
-    { id: 1, name: "Rahul Sharma", email: "rahul.sharma@pillsync.com", age: 28, phone: "+91 99887 76601", bloodGroup: "O+", status: "Active" },
-    { id: 11, name: "Nikhil Verma", email: "nikhil.verma@pillsync.com", age: 33, phone: "+91 99887 76611", bloodGroup: "B+", status: "Active" }
-  ],
-  "Sunitha Devi": [
-    { id: 2, name: "Priya Reddy", email: "priya.reddy@pillsync.com", age: 34, phone: "+91 99887 76602", bloodGroup: "A+", status: "Active" },
-    { id: 12, name: "Lakshmi Devi", email: "lakshmi.devi@pillsync.com", age: 67, phone: "+91 99887 76612", bloodGroup: "O+", status: "Active" }
-  ],
-  "Mahesh Rao": [
-    { id: 3, name: "Arjun Kumar", email: "arjun.kumar@pillsync.com", age: 45, phone: "+91 99887 76603", bloodGroup: "B+", status: "Active" },
-    { id: 13, name: "Harsha Vardhan", email: "harsha.pathan@pillsync.com", age: 58, phone: "+91 99887 76613", bloodGroup: "AB+", status: "Active" }
-  ],
-  "Kavitha Sharma": [
-    { id: 4, name: "Sneha Patel", email: "sneha.patel@pillsync.com", age: 22, phone: "+91 99887 76604", bloodGroup: "AB+", status: "Active" },
-    { id: 14, name: "Deepika Rani", email: "deepika.rani@pillsync.com", age: 48, phone: "+91 99887 76614", bloodGroup: "A+", status: "Active" }
-  ],
-  "Rajesh Patel": [
-    { id: 5, name: "Ravi Teja", email: "ravi.teja@pillsync.com", age: 31, phone: "+91 99887 76605", bloodGroup: "O-", status: "Active" },
-    { id: 15, name: "Suresh Babu", email: "suresh.babu@pillsync.com", age: 72, phone: "+91 99887 76615", bloodGroup: "B+", status: "Active" }
-  ],
-  "Srinivas Reddy": [
-    { id: 6, name: "Ananya Rao", email: "ananya.rao@pillsync.com", age: 29, phone: "+91 99887 76606", bloodGroup: "A-", status: "Active" },
-    { id: 16, name: "Meghana Reddy", email: "meghana.reddy@pillsync.com", age: 24, phone: "+91 99887 76616", bloodGroup: "O-", status: "Active" }
-  ],
-  "Anil Kumar": [
-    { id: 7, name: "Vikram Singh", email: "vikram.singh@pillsync.com", age: 52, phone: "+91 99887 76607", bloodGroup: "B-", status: "Active" },
-    { id: 17, name: "Akash Jain", email: "akash.jain@pillsync.com", age: 30, phone: "+91 99887 76617", bloodGroup: "A-", status: "Active" }
-  ],
-  "Sujatha Devi": [
-    { id: 8, name: "Kiran Kumar", email: "kiran.kumar@pillsync.com", age: 38, phone: "+91 99887 76608", bloodGroup: "AB-", status: "Active" },
-    { id: 18, name: "Bhavya Nair", email: "bhavya.nair@pillsync.com", age: 27, phone: "+91 99887 76618", bloodGroup: "B-", status: "Active" }
-  ],
-  "Manoj Verma": [
-    { id: 9, name: "Pooja Sharma", email: "pooja.sharma@pillsync.com", age: 26, phone: "+91 99887 76609", bloodGroup: "O+", status: "Active" },
-    { id: 19, name: "Ajay Kumar", email: "ajay.kumar@pillsync.com", age: 35, phone: "+91 99887 76619", bloodGroup: "AB-", status: "Active" }
-  ],
-  "Swapna Reddy": [
-    { id: 10, name: "Sai Krishna", email: "sai.krishna@pillsync.com", age: 41, phone: "+91 99887 76610", bloodGroup: "A+", status: "Active" },
-    { id: 20, name: "Divya Sri", email: "divya.sri@pillsync.com", age: 25, phone: "+91 99887 76620", bloodGroup: "O+", status: "Active" }
-  ]
-};
+import { Eye, X, Bell, Shield } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
 const CaregiverDashboard = ({ auth }) => {
   const [userData, setUserData] = useState(null);
+  const [patients, setPatients] = useState([]);
+  const [dashboardStats, setDashboardStats] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
 
-  // Table search, pagination & sort states
+  // Search, pagination & sorting
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState("id");
   const [sortOrder, setSortOrder] = useState("asc");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
 
-  // Selected Patient Details
-  const [selectedPatient, setSelectedPatient] = useState(null);
-  const [patientHistory, setPatientHistory] = useState(null);
-  const [patientDetails, setPatientDetails] = useState(null);
-  const [loadingHistory, setLoadingHistory] = useState(false);
-  
-  // Modal toggle for Milestone 3 placeholders
-  const [showM3Modal, setShowM3Modal] = useState(false);
+  // Selected Patient Details Modal state
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedPatientId, setSelectedPatientId] = useState(null);
+  const [patientDetail, setPatientDetail] = useState(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [detailError, setDetailError] = useState("");
 
   useEffect(() => {
-    const fetchUserData = async () => {
+    const loadDashboardData = async () => {
       try {
-        const data = await authService.getCurrentUser();
-        setUserData(data);
+        const user = await authService.getCurrentUser();
+        setUserData(user);
+
+        const patientsData = await caregiverService.getAssignedPatients();
+        setPatients(patientsData);
+
+        const statsData = await caregiverService.getDashboardSummary();
+        setDashboardStats(statsData);
       } catch (err) {
-        setErrorMsg("Failed to load caregiver dashboard data.");
+        console.error("Failed to load caregiver dashboard:", err);
+        setErrorMsg("Failed to retrieve dashboard records.");
       } finally {
         setIsLoading(false);
       }
     };
-    fetchUserData();
+    loadDashboardData();
   }, []);
 
-  const fetchPatientLogs = async (patient) => {
-    setSelectedPatient(patient);
-    setLoadingHistory(true);
-    setPatientHistory(null);
-    setPatientDetails(null);
+  const handleOpenHistory = async (patientId) => {
+    setSelectedPatientId(patientId);
+    setIsModalOpen(true);
+    setLoadingDetail(true);
+    setDetailError("");
+    setPatientDetail(null);
+
     try {
-      const stats = await medicineService.getPatientHistoryByEmail(patient.email);
-      setPatientHistory(stats);
-      
-      // Look up patient notifications preferences dynamically (for display on dashboard)
-      // Since getPatientHistoryByEmail endpoint validates the patient account, we can query details safely
-      // In this version, we will mock settings or fetch them as part of historical logs response.
-      // We will provide fallback display values.
-      setPatientDetails({
-        sms_enabled: patient.id % 2 === 0, // Mock settings relative to static assignments
-        notification_preference: patient.id % 2 === 0 ? "both" : "browser",
-        phone: patient.phone,
-        reminder_status: "Active reminder logs available"
-      });
+      const data = await caregiverService.getDetailedPatientHistory(patientId);
+      setPatientDetail(data);
     } catch (err) {
-      console.error("Failed to load patient history:", err);
-      setPatientHistory({
-        total_scheduled: 0,
-        taken_count: 0,
-        missed_count: 0,
-        snoozed_count: 0,
-        adherence_rate: 100,
-        history: []
-      });
+      console.error("Failed to load detailed patient history:", err);
+      const errMsg = err.response && err.response.data && err.response.data.detail
+        ? err.response.data.detail
+        : "Failed to load clinical compliance details: connection failed.";
+      setDetailError(errMsg);
     } finally {
-      setLoadingHistory(false);
+      setLoadingDetail(false);
     }
+  };
+
+  const handleCloseHistory = () => {
+    setIsModalOpen(false);
+    setSelectedPatientId(null);
+    setPatientDetail(null);
+  };
+
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortOrder("asc");
+    }
+    setCurrentPage(1);
   };
 
   if (isLoading) {
     return (
       <div className="app-container">
         <Sidebar role={auth.role} email={auth.email} />
-        <div className="main-content flex-center">
-          <div className="spinner" />
+        <div className="main-content" style={{ flex: 1, display: "flex", flexDirection: "column", height: "100vh", overflowY: "auto" }}>
+          <Navbar pageTitle="Caregiver Dashboard" />
+          <div style={{ padding: "2rem", maxWidth: "1400px", margin: "0 auto", width: "100%" }}>
+            <div className="skeleton" style={{ height: "120px", borderRadius: "20px", marginBottom: "2rem" }} />
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "1.25rem", marginBottom: "2rem" }}>
+              {[...Array(4)].map((_, i) => <div key={i} className="skeleton" style={{ height: "100px", borderRadius: "14px" }} />)}
+            </div>
+            <div className="skeleton" style={{ height: "350px", borderRadius: "20px" }} />
+          </div>
         </div>
       </div>
     );
   }
 
   const profile = userData?.profile || {};
-  const caregiverName = profile.full_name || "Ramesh Kumar";
-  
-  // Resolve assigned patient roster
-  const assignedRoster = caregiverPatientAssignments[caregiverName] || caregiverPatientAssignments["Ramesh Kumar"];
 
   // Filter patients
-  const filteredPatients = assignedRoster.filter((p) => {
+  const filteredPatients = patients.filter((p) => {
     const query = searchTerm.toLowerCase();
     return (
       p.name.toLowerCase().includes(query) ||
-      p.bloodGroup.toLowerCase().includes(query) ||
-      p.phone.includes(query)
+      (p.bloodGroup || "").toLowerCase().includes(query) ||
+      (p.phone || "").includes(query)
     );
   });
 
@@ -162,31 +133,23 @@ const CaregiverDashboard = ({ auth }) => {
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const paginatedPatients = sortedPatients.slice(indexOfFirstItem, indexOfLastItem);
 
-  const handleSort = (field) => {
-    if (sortField === field) {
-      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
-    } else {
-      setSortField(field);
-      setSortOrder("asc");
-    }
-    setCurrentPage(1);
-  };
-
   return (
-    <div className="app-container">
+    <div className="app-container" style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
       <Sidebar role={auth.role} email={auth.email} />
-      <div className="main-content">
+      
+      <div className="main-content" style={{ flex: 1, display: "flex", flexDirection: "column", height: "100vh", overflowY: "auto" }}>
         <Navbar pageTitle="Caregiver Dashboard" />
         
-        <main className="content-area">
+        <main className="content-area" style={{ padding: "2rem" }}>
           {errorMsg && <div className="alert alert-danger">{errorMsg}</div>}
           
-          <div className="welcome-banner card" style={{ borderLeft: "4px solid var(--primary-color)" }}>
+          <div className="page-section stagger-1 welcome-banner card" style={{ borderLeft: "4px solid var(--primary-color)", marginBottom: "2rem" }}
+          >
             <h2>Welcome back, {profile.full_name || "Caregiver"}!</h2>
             <p>You are logged into your Caregiver home dashboard. Below is your profile and assigned patient roster.</p>
           </div>
 
-          <div className="grid grid-cols-2">
+          <div className="page-section stagger-2 grid grid-cols-2" style={{ gap: "1.5rem", marginBottom: "2rem" }}>
             {/* Profile Information Card */}
             <div className="card">
               <h3 className="card-title">Caregiver Profile</h3>
@@ -233,17 +196,12 @@ const CaregiverDashboard = ({ auth }) => {
           </div>
 
           {/* Assigned Patients Table */}
-          <div className="card">
-            <h3 className="card-title">Assigned Patients</h3>
-            <p style={{ color: "var(--text-light)", fontSize: "0.85rem", marginBottom: "1rem" }}>Click on any patient row to view their medication adherence report and history log details.</p>
+          <div className="card" style={{ padding: "2rem", borderRadius: "16px" }}>
+            <h3 className="card-title" style={{ marginBottom: "1.5rem", fontWeight: 800 }}>Assigned Patients</h3>
             
             {/* Table Search & Pagination Toolbar */}
-            <div className="table-toolbar">
-              <div className="search-input-wrapper">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="11" cy="11" r="8"></circle>
-                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                </svg>
+            <div className="table-toolbar" style={{ marginBottom: "1rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div className="search-input-wrapper" style={{ display: "flex", alignItems: "center", gap: "0.5rem", background: "var(--bg-secondary)", padding: "0.4rem 1rem", borderRadius: "10px", border: "1px solid var(--border)", width: "300px" }}>
                 <input
                   type="text"
                   placeholder="Search patients..."
@@ -253,69 +211,73 @@ const CaregiverDashboard = ({ auth }) => {
                     setSearchTerm(e.target.value);
                     setCurrentPage(1);
                   }}
+                  style={{ border: "none", background: "transparent", width: "100%", outline: "none" }}
                 />
               </div>
 
-              <div className="pagination-controls">
-                <span className="page-info">
-                  Showing {indexOfFirstItem + 1} - {Math.min(indexOfLastItem, sortedPatients.length)} of {sortedPatients.length}
-                </span>
-                <button
-                  onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-                  disabled={pageToRender === 1}
-                  className="btn-page"
-                >
-                  Prev
-                </button>
-                <button
-                  onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
-                  disabled={pageToRender === totalPages}
-                  className="btn-page"
-                >
-                  Next
-                </button>
-              </div>
+              {totalPages > 1 && (
+                <div className="pagination-controls" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <span className="page-info" style={{ fontSize: "0.8rem", color: "var(--text-light)" }}>
+                    Showing {indexOfFirstItem + 1} - {Math.min(indexOfLastItem, sortedPatients.length)} of {sortedPatients.length}
+                  </span>
+                  <button
+                    onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                    disabled={pageToRender === 1}
+                    className="btn-page"
+                    style={{ padding: "0.3rem 0.75rem", borderRadius: "8px", cursor: "pointer" }}
+                  >
+                    Prev
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                    disabled={pageToRender === totalPages}
+                    className="btn-page"
+                    style={{ padding: "0.3rem 0.75rem", borderRadius: "8px", cursor: "pointer" }}
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="table-container">
               <table className="table">
                 <thead>
                   <tr>
-                    <th onClick={() => handleSort("id")} className="sort-header">
+                    <th onClick={() => handleSort("id")} style={{ cursor: "pointer" }}>
                       Patient ID {sortField === "id" && (sortOrder === "asc" ? "▲" : "▼")}
                     </th>
-                    <th onClick={() => handleSort("name")} className="sort-header">
-                      Full Name {sortField === "name" && (sortOrder === "asc" ? "▲" : "▼")}
+                    <th onClick={() => handleSort("name")} style={{ cursor: "pointer" }}>
+                      Patient Name {sortField === "name" && (sortOrder === "asc" ? "▲" : "▼")}
                     </th>
-                    <th onClick={() => handleSort("age")} className="sort-header">
-                      Age {sortField === "age" && (sortOrder === "asc" ? "▲" : "▼")}
-                    </th>
-                    <th>Phone</th>
-                    <th onClick={() => handleSort("bloodGroup")} className="sort-header">
-                      Blood Group {sortField === "bloodGroup" && (sortOrder === "asc" ? "▲" : "▼")}
-                    </th>
+                    <th>Age</th>
+                    <th>Blood Group</th>
+                    <th>Phone Number</th>
                     <th>Status</th>
-                    <th>Action</th>
+                    <th style={{ textAlign: "right" }}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {paginatedPatients.map((pat) => (
-                    <tr 
-                      key={pat.id} 
-                      onClick={() => fetchPatientLogs(pat)}
-                      style={{ cursor: "pointer", background: selectedPatient?.id === pat.id ? "var(--primary-light)" : "transparent" }}
-                    >
+                    <tr key={pat.id}>
                       <td>#{pat.id}</td>
                       <td><strong>{pat.name}</strong></td>
-                      <td>{pat.age} years</td>
-                      <td>{pat.phone}</td>
-                      <td>{pat.bloodGroup}</td>
+                      <td>{pat.age}</td>
+                      <td>{pat.bloodGroup || "—"}</td>
+                      <td>{pat.phone || "—"}</td>
                       <td>
-                        <span className="badge badge-success">{pat.status}</span>
+                        <span className={`badge ${pat.status === "Active" ? "badge-success" : "badge-secondary"}`}>
+                          {pat.status}
+                        </span>
                       </td>
-                      <td>
-                        <button className="btn btn-secondary" style={{ padding: "0.2rem 0.5rem", fontSize: "0.75rem" }}>
-                          View History
+                      <td style={{ textAlign: "right" }}>
+                        <button
+                          className="btn btn-primary"
+                          onClick={() => handleOpenHistory(pat.id)}
+                          style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem", padding: "0.4rem 1rem", fontSize: "0.82rem", borderRadius: "8px" }}
+                        >
+                          <Eye size={14} />
+                          <span>View History</span>
                         </button>
                       </td>
                     </tr>
@@ -329,247 +291,286 @@ const CaregiverDashboard = ({ auth }) => {
               </table>
             </div>
           </div>
-
-          {/* Expanded Adherence Adherence Logs for Selected Patient */}
-          {selectedPatient && (
-            <div className="card" style={{ marginTop: "2rem", borderTop: "4px solid var(--primary-color)" }}>
-              <h3 className="card-title">Adherence Adherence Report: {selectedPatient.name}</h3>
-              
-              {loadingHistory ? (
-                <div style={{ display: "flex", justifyContent: "center", padding: "2rem" }}>
-                  <div className="spinner" />
-                </div>
-              ) : patientHistory ? (
-                <>
-                  {/* Patient configuration alerts */}
-                  {patientDetails && (
-                    <div style={{ display: "flex", gap: "1rem", marginBottom: "1rem", flexWrap: "wrap" }}>
-                      <span className="badge" style={{ background: "#eff6ff", color: "#1e40af", border: "1px solid #bfdbfe" }}>
-                        Email Alerts: {patientDetails.email_enabled ? "Enabled" : "Disabled"}
-                      </span>
-                      <span className="badge" style={{ background: "#fef2f2", color: "#991b1b", border: "1px solid #fecaca" }}>
-                        Channel: Email / SMTP
-                      </span>
-                      <span className="badge" style={{ background: "#fdf2f8", color: "#9d174d", border: "1px solid #fbcfe8" }}>
-                        Active: Registered Account Email
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Adherence metrics block */}
-                  <div className="grid grid-cols-4 stats-grid" style={{ marginBottom: "1.5rem" }}>
-                    <div className="card stat-card" style={{ background: "#eff6ff", border: "1px solid #bfdbfe" }}>
-                      <span className="stat-label">Adherence Rate</span>
-                      <h4 style={{ color: "var(--primary-color)", fontSize: "1.5rem", fontWeight: "bold" }}>
-                        {patientHistory.adherence_rate}%
-                      </h4>
-                    </div>
-                    <div className="card stat-card" style={{ background: "#ecfdf5", border: "1px solid #a7f3d0" }}>
-                      <span className="stat-label">Doses Taken</span>
-                      <h4 style={{ color: "#10b981", fontSize: "1.5rem", fontWeight: "bold" }}>
-                        {patientHistory.taken_count}
-                      </h4>
-                    </div>
-                    <div className="card stat-card" style={{ background: "#fef2f2", border: "1px solid #fecaca" }}>
-                      <span className="stat-label">Doses Missed</span>
-                      <h4 style={{ color: "#ef4444", fontSize: "1.5rem", fontWeight: "bold" }}>
-                        {patientHistory.missed_count}
-                      </h4>
-                    </div>
-                    <div className="card stat-card" style={{ background: "#fffbeb", border: "1px solid #fde68a" }}>
-                      <span className="stat-label">Doses Snoozed</span>
-                      <h4 style={{ color: "#f59e0b", fontSize: "1.5rem", fontWeight: "bold" }}>
-                        {patientHistory.snoozed_count}
-                      </h4>
-                    </div>
-                  </div>
-
-                  {/* Adherence detailed logs table */}
-                  <h4 style={{ marginBottom: "0.5rem" }}>Adherence Logs (Latest 10)</h4>
-                  <div className="table-container">
-                    <table className="table">
-                      <thead>
-                        <tr>
-                          <th>Log ID</th>
-                          <th>Medicine Name</th>
-                          <th>Dosage</th>
-                          <th>Interval</th>
-                          <th>Scheduled Date</th>
-                          <th>Status</th>
-                          <th>Log Time</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {patientHistory.history.slice(0, 10).map((log) => (
-                          <tr key={log.id}>
-                            <td>#{log.id}</td>
-                            <td><strong>{log.medicine_name}</strong></td>
-                            <td>{log.dosage}</td>
-                            <td>{log.time_of_day}</td>
-                            <td>{log.scheduled_date}</td>
-                            <td>
-                              <span className={`badge ${log.status === "Taken" ? "badge-success" : log.status === "Missed" ? "badge-danger" : "badge-secondary"}`}>
-                                {log.status}
-                              </span>
-                            </td>
-                            <td style={{ fontSize: "0.8rem" }}>{new Date(log.action_time).toLocaleString()}</td>
-                          </tr>
-                        ))}
-                        {patientHistory.history.length === 0 && (
-                          <tr>
-                            <td colSpan="7" style={{ textAlign: "center", padding: "1.5rem", color: "var(--text-light)" }}>
-                              No logs recorded for this patient.
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {/* Milestone 3 Clinical Placeholders */}
-                  <div style={{ marginTop: "2rem", borderTop: "1px solid var(--border-color)", paddingTop: "1.5rem" }}>
-                    <h4 style={{ marginBottom: "1rem" }}>Clinical Insights & Predictions (Upcoming in Milestone 3)</h4>
-                    <div className="grid grid-cols-2" style={{ gap: "1rem" }}>
-                      <div 
-                        className="card" 
-                        onClick={() => setShowM3Modal(true)}
-                        style={{ cursor: "pointer", border: "1px dashed var(--border-color)", padding: "1rem", opacity: 0.8 }}
-                      >
-                        <div style={{ fontWeight: "bold", fontSize: "0.95rem" }}>📈 Adherence Trend Analysis</div>
-                        <p style={{ fontSize: "0.8rem", color: "var(--text-light)", marginTop: "0.25rem" }}>
-                          Predict patient adherence patterns and forecast medicine refills using machine learning.
-                        </p>
-                        <span className="badge badge-secondary" style={{ fontSize: "0.65rem", marginTop: "0.5rem", display: "inline-block" }}>Coming in Milestone 3</span>
-                      </div>
-
-                      <div 
-                        className="card" 
-                        onClick={() => setShowM3Modal(true)}
-                        style={{ cursor: "pointer", border: "1px dashed var(--border-color)", padding: "1rem", opacity: 0.8 }}
-                      >
-                        <div style={{ fontWeight: "bold", fontSize: "0.95rem" }}>💡 Smart AI Recommendations</div>
-                        <p style={{ fontSize: "0.8rem", color: "var(--text-light)", marginTop: "0.25rem" }}>
-                          AI suggested intervention steps for patients with below 80% weekly adherence rates.
-                        </p>
-                        <span className="badge badge-secondary" style={{ fontSize: "0.65rem", marginTop: "0.5rem", display: "inline-block" }}>Coming in Milestone 3</span>
-                      </div>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <p>Failed to load patient history report.</p>
-              )}
-            </div>
-          )}
         </main>
       </div>
 
-      {/* Milestone 3 Professional Modal (Shared for Caregiver) */}
-      {showM3Modal && (
-        <div className="modal-backdrop flex-center" style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", background: "rgba(0,0,0,0.5)", zIndex: 1000 }}>
-          <div className="card modal-content" style={{ width: "500px", padding: "2rem", borderRadius: "12px", border: "1px solid #bfdbfe", background: "#f8fafc" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem", borderBottom: "1px solid var(--border-color)", paddingBottom: "0.75rem" }}>
-              <h3 className="card-title" style={{ margin: 0, display: "flex", alignItems: "center", gap: "0.5rem", color: "var(--primary-color)" }}>
-                <span>✨</span> Feature Not Available Yet
-              </h3>
-              <button onClick={() => setShowM3Modal(false)} style={{ background: "none", border: "none", fontSize: "1.5rem", cursor: "pointer", color: "var(--text-light)" }}>&times;</button>
-            </div>
-            
-            <p style={{ fontSize: "0.95rem", lineHeight: "1.6", color: "var(--text-primary)", marginBottom: "1.25rem" }}>
-              This feature is planned for <strong>Milestone 3</strong>. It will be available after the completion and mentor approval of Milestone 2.
-            </p>
+      {/* Slide-over Right Panel Modal Dialog (Framer Motion) */}
+      <AnimatePresence>
+        {isModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            style={{
+              position: "fixed",
+              inset: 0,
+              zIndex: 1000,
+              background: "rgba(15, 23, 42, 0.4)",
+              backdropFilter: "blur(8px)",
+              display: "flex",
+              justifyContent: "flex-end"
+            }}
+            onClick={handleCloseHistory}
+          >
+            <motion.div
+              initial={{ x: "100%", opacity: 0.95 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: "100%", opacity: 0.95 }}
+              transition={{ type: "spring", damping: 30, stiffness: 200 }}
+              style={{
+                width: "100%",
+                maxWidth: "680px",
+                height: "100vh",
+                background: "var(--bg-card)",
+                boxShadow: "-10px 0 30px rgba(0, 0, 0, 0.15)",
+                display: "flex",
+                flexDirection: "column",
+                overflow: "hidden",
+                borderLeft: "1px solid var(--border)"
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "1.5rem 2rem", borderBottom: "1px solid var(--border)", background: "var(--bg-secondary)" }}>
+                <div>
+                  <h3 style={{ margin: 0, fontWeight: 850, fontSize: "1.25rem", color: "var(--text-primary)" }}>Medication Compliance Report</h3>
+                  <p style={{ margin: 0, fontSize: "0.75rem", color: "var(--text-light)" }}>Comprehensive clinical compliance record logs</p>
+                </div>
+                <button
+                  onClick={handleCloseHistory}
+                  style={{ background: "transparent", border: "none", color: "var(--text-primary)", cursor: "pointer", padding: "4px" }}
+                >
+                  <X size={22} />
+                </button>
+              </div>
 
-            <div style={{ background: "#ffffff", padding: "1rem", borderRadius: "8px", border: "1px solid #e2e8f0", marginBottom: "1.5rem" }}>
-              <strong style={{ display: "block", marginBottom: "0.75rem", fontSize: "0.9rem", color: "var(--text-primary)" }}>Upcoming Features:</strong>
-              <ul style={{ listStyleType: "none", padding: 0, margin: 0, display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem 1rem", fontSize: "0.85rem", color: "var(--text-secondary)" }}>
-                <li>• OCR Prescription Scanner</li>
-                <li>• OCR Medicine Recognition</li>
-                <li>• AI Refill Prediction</li>
-                <li>• Disease Analysis</li>
-                <li>• OpenAI Assistant</li>
-                <li>• Medicine Image Recognition</li>
-                <li>• Refill Analytics</li>
-                <li>• Smart AI Recommendations</li>
-              </ul>
-            </div>
+              {/* Scrollable details content */}
+              <div style={{ flex: 1, overflowY: "auto", padding: "2rem" }}>
+                {loadingDetail && (
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: "1rem" }}>
+                    <div className="spinner" />
+                    <span style={{ fontSize: "0.85rem", color: "var(--text-light)" }}>Loading patient clinical logs...</span>
+                  </div>
+                )}
 
-            <div style={{ display: "flex", justifyContent: "flex-end" }}>
-              <button onClick={() => setShowM3Modal(false)} className="btn btn-primary">Understood</button>
-            </div>
-          </div>
-        </div>
-      )}
+                {detailError && (
+                  <div className="alert alert-danger">{detailError}</div>
+                )}
 
-      <style dangerouslySetInnerHTML={{ __html: `
-        .welcome-banner {
-          background-color: var(--primary-light) !important;
-          border-color: #bfdbfe !important;
-        }
+                {!loadingDetail && !detailError && patientDetail && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "2rem" }}>
+                    
+                    {/* Patient Details */}
+                    <div className="card" style={{ background: "rgba(255, 255, 255, 0.02)", border: "1px solid var(--border)", padding: "1.5rem", borderRadius: "12px" }}>
+                      <h4 style={{ margin: "0 0 1rem", fontSize: "0.95rem", fontWeight: 800, color: "var(--primary)" }}>Patient Details</h4>
+                      <div style={{ display: "flex", gap: "1.5rem", alignItems: "center", marginBottom: "1.5rem" }}>
+                        {patientDetail.patient.profile_photo ? (
+                          <img
+                            src={patientDetail.patient.profile_photo}
+                            alt="Patient profile"
+                            style={{ width: "80px", height: "80px", borderRadius: "50%", objectFit: "cover", border: "2px solid var(--primary)" }}
+                          />
+                        ) : (
+                          <div style={{ width: "80px", height: "80px", borderRadius: "50%", background: "var(--primary-light)", color: "var(--primary)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold", fontSize: "1.5rem" }}>
+                            {patientDetail.patient.name.charAt(0)}
+                          </div>
+                        )}
+                        <div>
+                          <h3 style={{ margin: 0, fontSize: "1.2rem", fontWeight: 800 }}>{patientDetail.patient.name}</h3>
+                          <span style={{ fontSize: "0.75rem", color: "var(--text-light)" }}>ID: #{patientDetail.patient.id} | {patientDetail.patient.email}</span>
+                        </div>
+                      </div>
 
-        .welcome-banner h2 {
-          color: var(--primary-color);
-          margin-bottom: 0.25rem;
-        }
+                      <div className="grid grid-cols-2" style={{ gap: "1rem 1.5rem", fontSize: "0.85rem" }}>
+                        <div>
+                          <span style={{ color: "var(--text-light)", display: "block" }}>Age</span>
+                          <strong>{patientDetail.patient.age} yrs</strong>
+                        </div>
+                        <div>
+                          <span style={{ color: "var(--text-light)", display: "block" }}>Gender</span>
+                          <strong style={{ textTransform: "capitalize" }}>{patientDetail.patient.gender || "—"}</strong>
+                        </div>
+                        <div>
+                          <span style={{ color: "var(--text-light)", display: "block" }}>Blood Group</span>
+                          <strong>{patientDetail.patient.bloodGroup || "—"}</strong>
+                        </div>
+                        <div>
+                          <span style={{ color: "var(--text-light)", display: "block" }}>Phone Number</span>
+                          <strong>{patientDetail.patient.phone || "—"}</strong>
+                        </div>
+                        <div className="grid-span-2">
+                          <span style={{ color: "var(--text-light)", display: "block" }}>Address</span>
+                          <strong>{patientDetail.patient.address || "—"}</strong>
+                        </div>
+                        <div className="grid-span-2">
+                          <span style={{ color: "var(--text-light)", display: "block" }}>Emergency Contact</span>
+                          <strong>{patientDetail.patient.emergency_contact || "—"}</strong>
+                        </div>
+                      </div>
+                    </div>
 
-        .welcome-banner p {
-          color: var(--text-secondary);
-          font-size: 0.9375rem;
-        }
+                    {/* Adherence Statistics */}
+                    <div className="card" style={{ padding: "1.5rem", borderRadius: "12px" }}>
+                      <h4 style={{ margin: "0 0 1rem", fontSize: "0.95rem", fontWeight: 800, color: "var(--accent)" }}>Statistics</h4>
+                      <div className="grid grid-cols-4" style={{ gap: "1rem", textAlign: "center" }}>
+                        <div style={{ background: "var(--bg-secondary)", padding: "0.75rem", borderRadius: "8px" }}>
+                          <span style={{ fontSize: "0.7rem", color: "var(--text-light)", display: "block" }}>Weekly Adherence</span>
+                          <strong style={{ fontSize: "1.1rem" }}>{patientDetail.adherence.weekly_rate}%</strong>
+                        </div>
+                        <div style={{ background: "var(--bg-secondary)", padding: "0.75rem", borderRadius: "8px" }}>
+                          <span style={{ fontSize: "0.7rem", color: "var(--text-light)", display: "block" }}>Monthly Adherence</span>
+                          <strong style={{ fontSize: "1.1rem" }}>{patientDetail.adherence.monthly_rate}%</strong>
+                        </div>
+                        <div style={{ background: "var(--bg-secondary)", padding: "0.75rem", borderRadius: "8px" }}>
+                          <span style={{ fontSize: "0.7rem", color: "var(--text-light)", display: "block" }}>Missed Dose Count</span>
+                          <strong style={{ fontSize: "1.1rem", color: "var(--error-color)" }}>{patientDetail.adherence.total_missed}</strong>
+                        </div>
+                        <div style={{ background: "var(--bg-secondary)", padding: "0.75rem", borderRadius: "8px" }}>
+                          <span style={{ fontSize: "0.7rem", color: "var(--text-light)", display: "block" }}>Completion %</span>
+                          <strong style={{ fontSize: "1.1rem", color: "var(--primary)" }}>{patientDetail.adherence.completion_rate}%</strong>
+                        </div>
+                      </div>
+                    </div>
 
-        .info-list {
-          display: flex;
-          flex-direction: column;
-          gap: 0.75rem;
-        }
+                    {/* Notifications preferences */}
+                    <div className="card" style={{ padding: "1.5rem", borderRadius: "12px" }}>
+                      <h4 style={{ margin: "0 0 1rem", fontSize: "0.95rem", fontWeight: 800, color: "var(--primary)" }}>Notifications</h4>
+                      <div className="grid grid-cols-3" style={{ gap: "1rem", fontSize: "0.85rem" }}>
+                        <div style={{ display: "flex", flexDirection: "column" }}>
+                          <span style={{ color: "var(--text-light)", fontSize: "0.7rem" }}>Browser Notification Status</span>
+                          <strong>{patientDetail.notifications.browser_notifications}</strong>
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column" }}>
+                          <span style={{ color: "var(--text-light)", fontSize: "0.7rem" }}>Email Reminder Status</span>
+                          <strong>{patientDetail.notifications.email_reminder_status}</strong>
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column" }}>
+                          <span style={{ color: "var(--text-light)", fontSize: "0.7rem" }}>Last Reminder Sent</span>
+                          <strong>{patientDetail.notifications.last_reminder_sent}</strong>
+                        </div>
+                      </div>
+                    </div>
 
-        .info-item {
-          display: flex;
-          justify-content: space-between;
-          font-size: 0.875rem;
-          padding-bottom: 0.5rem;
-          border-bottom: 1px solid var(--border-color);
-        }
+                    {/* Today's Status */}
+                    <div className="card" style={{ padding: "1.5rem", borderRadius: "12px" }}>
+                      <h4 style={{ margin: "0 0 1rem", fontSize: "0.95rem", fontWeight: 800, color: "var(--text-primary)" }}>Today's Status</h4>
+                      
+                      <div style={{ display: "flex", flexDirection: "column", gap: "1rem", fontSize: "0.85rem" }}>
+                        <div>
+                          <span style={{ color: "var(--text-light)", display: "block", marginBottom: "4px" }}>Today's Medicines</span>
+                          {patientDetail.today_summary.today_medicines.length === 0 ? (
+                            <span style={{ color: "var(--text-light)" }}>None scheduled today</span>
+                          ) : (
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                              {patientDetail.today_summary.today_medicines.map((m, idx) => (
+                                <span key={idx} style={{ background: "var(--bg-secondary)", padding: "4px 10px", borderRadius: "6px", border: "1px solid var(--border)", fontSize: "0.8rem" }}>{m}</span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
 
-        .info-item:last-child {
-          border-bottom: none;
-          padding-bottom: 0;
-        }
+                        <div className="grid grid-cols-4" style={{ gap: "1rem" }}>
+                          <div style={{ borderLeft: "3px solid var(--success-color)", paddingLeft: "8px" }}>
+                            <span style={{ fontSize: "0.7rem", color: "var(--text-light)", display: "block" }}>Completed</span>
+                            <strong>{patientDetail.today_summary.completed.length} Dose(s)</strong>
+                          </div>
+                          <div style={{ borderLeft: "3px solid var(--warning)", paddingLeft: "8px" }}>
+                            <span style={{ fontSize: "0.7rem", color: "var(--text-light)", display: "block" }}>Pending</span>
+                            <strong>{patientDetail.today_summary.pending.length} Dose(s)</strong>
+                          </div>
+                          <div style={{ borderLeft: "3px solid var(--error-color)", paddingLeft: "8px" }}>
+                            <span style={{ fontSize: "0.7rem", color: "var(--text-light)", display: "block" }}>Missed</span>
+                            <strong>{patientDetail.today_summary.missed.length} Dose(s)</strong>
+                          </div>
+                          <div style={{ borderLeft: "3px solid var(--accent)", paddingLeft: "8px" }}>
+                            <span style={{ fontSize: "0.7rem", color: "var(--text-light)", display: "block" }}>Upcoming</span>
+                            <strong>{patientDetail.today_summary.upcoming.length} Dose(s)</strong>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
 
-        .info-label {
-          color: var(--text-secondary);
-          font-weight: 500;
-        }
+                    {/* Medicine Details */}
+                    <div>
+                      <h4 style={{ margin: "0 0 0.75rem", fontSize: "0.95rem", fontWeight: 800, color: "var(--text-primary)" }}>Medicine Details</h4>
+                      {patientDetail.medicines.length === 0 ? (
+                        <p style={{ fontSize: "0.82rem", color: "var(--text-light)" }}>No medicines registered for this patient.</p>
+                      ) : (
+                        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                          {patientDetail.medicines.map((m) => (
+                            <div key={m.id} style={{ background: "var(--bg-secondary)", border: "1px solid var(--border)", borderRadius: "10px", padding: "1rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                <strong style={{ fontSize: "0.95rem" }}>{m.name}</strong>
+                                <span className="badge badge-primary">{m.dosage}</span>
+                              </div>
+                              <div className="grid grid-cols-3" style={{ fontSize: "0.8rem", gap: "0.5rem" }}>
+                                <div>
+                                  <span style={{ color: "var(--text-light)" }}>Frequency:</span> <strong>{m.frequency}</strong>
+                                </div>
+                                <div>
+                                  <span style={{ color: "var(--text-light)" }}>Relationship:</span> <strong>{m.food_relationship}</strong>
+                                </div>
+                                <div>
+                                  <span style={{ color: "var(--text-light)" }}>Active Span:</span> <strong>{m.start_date} to {m.end_date}</strong>
+                                </div>
+                              </div>
+                              <div style={{ fontSize: "0.78rem", color: "var(--text-light)", borderTop: "1px dashed var(--border)", paddingTop: "0.4rem" }}>
+                                <strong>Instructions:</strong> {m.instructions}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
 
-        .info-val {
-          color: var(--text-primary);
-          font-weight: 600;
-        }
+                    {/* Medication History table */}
+                    <div>
+                      <h4 style={{ margin: "0 0 0.75rem", fontSize: "0.95rem", fontWeight: 800, color: "var(--text-primary)" }}>Medication History</h4>
+                      <div style={{ overflowX: "auto", maxHeight: "250px" }}>
+                        <table className="table" style={{ fontSize: "0.82rem" }}>
+                          <thead>
+                            <tr>
+                              <th>Date</th>
+                              <th>Time</th>
+                              <th>Medicine Name</th>
+                              <th>Scheduled Time</th>
+                              <th>Status</th>
+                              <th>Caregiver Notes</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {patientDetail.history.length === 0 ? (
+                              <tr>
+                                <td colSpan="6" style={{ textAlign: "center", color: "var(--text-light)" }}>No historical logs available.</td>
+                              </tr>
+                            ) : (
+                              patientDetail.history.map((h) => (
+                                <tr key={h.id}>
+                                  <td>{h.date}</td>
+                                  <td>{h.time}</td>
+                                  <td><strong>{h.medicine_name}</strong></td>
+                                  <td>{h.scheduled_time}</td>
+                                  <td>
+                                    <span className={`badge ${h.status === "Taken" ? "badge-success" : h.status === "Missed" ? "badge-danger" : "badge-warning"}`}>
+                                      {h.status}
+                                    </span>
+                                  </td>
+                                  <td>{h.caregiver_notes}</td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
 
-        .capitalize {
-          text-transform: capitalize;
-        }
-
-        .info-item-block {
-          display: flex;
-          flex-direction: column;
-          gap: 0.25rem;
-        }
-
-        .info-label-block {
-          font-size: 0.75rem;
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-          color: var(--text-light);
-          font-weight: 600;
-          margin-bottom: 0.5rem;
-        }
-
-        .info-val-block {
-          font-size: 0.875rem;
-          color: var(--text-primary);
-          line-height: 1.6;
-        }
-      ` }} />
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

@@ -1,6 +1,6 @@
 # PillSync – Intelligent Medicine Reminder and Medication Tracking Platform
 
-PillSync is a healthcare management system designed to reduce medication non-adherence by connecting patients, caregivers, and administration. This repository contains the complete implementation for **Milestone 2** of the PillSync platform, building on the foundational architecture of Milestone 1 to integrate full medication lifecycle management, scheduling, notification settings, medication history logging, and real-time reminders.
+PillSync is an Intelligent Healthcare Management Platform designed to reduce medication non-adherence by connecting patients, caregivers, doctors, and administration. This repository contains the complete implementation for **Milestone 3** of the PillSync platform, featuring AI & Intelligent Medication Management, Medicine Master Database, Smart Validation, Prescription OCR, Drug Interaction Checker, Refill Prediction, Adherence Analytics, Smart Notification Center, Emergency Medical ID Cards, and Health Insights.
 
 ---
 
@@ -210,6 +210,51 @@ erDiagram
 - **POST `/notifications/mark-read`**: Mark notifications as read.
 - **POST `/users/profile/notifications/test-email`**: Send a real-time verification test email.
 
+### 5. Intelligent Google Gemini Vision Prescription Recognition Endpoints
+- **POST `/ocr/upload`**: Preprocesses prescription file (auto-rotate, deskew, contrast enhance, sharpen, compression) and saves upload record.
+- **POST `/ocr/extract`**: Executes **Google Gemini Vision API** (`gemini-2.5-flash` / `gemini-1.5-flash`) intelligent recognition to extract structured medication JSON (`medicine_name`, `strength`, `dosage`, `frequency`, `duration`, `timing`, `food`, `instructions`), completely ignoring doctor/hospital/patient metadata noise. Performs **RapidFuzz** fuzzy matching against `MedicineMaster` for spelling auto-correction.
+- **POST `/ocr/save-medicines`**: Batch saves validated medicines to active prescription list after user review.
+- **GET `/ocr/history`**: Retrieves prescription scan archive history.
+
+---
+
+## 🤖 Intelligent Google Gemini Vision OCR Architecture
+
+PillSync features a production-grade Prescription Recognition engine powered by **Google Gemini Vision API** (`google-genai` / `google-generativeai`) and **RapidFuzz**:
+
+### 1. Image Preprocessing Pipeline
+- **Auto-Rotation & Deskewing**: Automatically transposes image orientation using EXIF metadata.
+- **Contrast & Sharpness Enhancement**: Enhances text legibility for handwritten and printed doctor notes.
+- **Optimized Payload Encoding**: Resizes large images to max 1600px and converts to compressed JPEG payload.
+
+### 2. Google Gemini Vision Understanding
+- Instructs Gemini Vision to extract ONLY active medication items in structured JSON format.
+- Automatically discards Doctor names, registration numbers, Hospital logos, addresses, phone numbers, Patient details, age, gender, and diagnosis notes.
+
+### 3. RapidFuzz Medicine Master Validation
+- Matches extracted medicine names against the PostgreSQL `MedicineMaster` database using `RapidFuzz` string similarity.
+- Similarity >= 80%: Automatically corrects spelling mistakes (e.g. `Dolo650` ➔ `Dolo 650`, `Azithromvcin` ➔ `Azithromycin`).
+- Similarity < 80%: Flags item as `Needs Review`.
+
+### 🔑 Environment Variables Setup
+Create a `.env` file in the `backend/` directory:
+```env
+# Database
+DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/pillsync
+
+# Google Gemini API Key for Vision Recognition
+GEMINI_API_KEY=your_gemini_api_key_here
+
+# Gmail SMTP Email Reminders
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your_email@gmail.com
+SMTP_PASSWORD=your_app_password
+```
+SMTP_USER=your_email@gmail.com
+SMTP_PASSWORD=your_app_password
+```
+
 ---
 
 # 🎨 UI Enhancements
@@ -332,3 +377,108 @@ git push origin milestone-2
 - [x] Caregiver linked viewports
 - [x] Responsive 3D Parallax React UI
 - [x] Production Build Validation
+
+
+---
+
+# Milestone 3 – AI-Powered Smart Medication Intelligence
+
+## 1. Google Gemini Vision Prescription Analysis
+- Replaced the previous OCR workflow with Google Gemini Vision.
+- Prescription images are analyzed directly using Google Gemini Vision AI.
+- AI extracts structured medicine information.
+- Improved handwritten and printed prescription recognition.
+- Structured JSON output.
+- User reviews extracted medicines before saving.
+
+## 2. AI Medicine Name Validation
+- Medicine validation powered by Google Gemini AI.
+- Invalid medicine names are rejected.
+- Random text, person names, cities and invalid entries are not accepted.
+- Gemini validates medicines before saving.
+- Normalized medicine names are returned when possible.
+
+## 3. Refill Prediction Engine
+- Remaining medicine quantity calculation.
+- Expected finish date prediction.
+- Predicted refill date.
+- Automatic recalculation after dosage changes, stock updates and missed doses.
+
+## 4. Dosage Analysis Workflow
+- Duplicate medicine detection.
+- Frequency conflict detection.
+- Missed dose detection.
+- Extra dose detection.
+- Timing conflict analysis.
+- Severity classification.
+
+## 5. Refill Notification Engine
+- APScheduler background jobs.
+- Automatic refill reminders.
+- 7-day notification.
+- 3-day notification.
+- 1-day notification.
+- Medicine finished notification.
+- Duplicate notification prevention.
+
+## 6. Medication Adherence Analytics
+- Taken doses.
+- Missed doses.
+- Late doses.
+- Adherence percentage.
+- Current streak.
+- Longest streak.
+
+## 7. Backend Improvements
+- FastAPI
+- PostgreSQL
+- SQLAlchemy
+- Alembic
+- APScheduler
+- Google Gemini AI
+
+## 8. APIs
+- \POST /api/ocr/analyze- \POST /api/ocr/save-batch- \GET /api/refill/predictions- \GET /api/dosage-analysis- \GET /api/analytics/adherence- \GET /api/notifications
+## 9. Project Architecture
+React Frontend
+↓
+FastAPI Backend
+↓
+Google Gemini AI
+↓
+PostgreSQL Database
+↓
+APScheduler
+↓
+Notification Engine
+
+## 10. Technologies Used
+
+**Frontend**
+- React.js
+- Tailwind CSS
+- Axios
+
+**Backend**
+- FastAPI
+- Python
+- SQLAlchemy
+- PostgreSQL
+- Alembic
+- APScheduler
+
+**AI**
+- Google Gemini Vision
+- Google Gemini AI
+
+## 11. Milestone 3 Achievements
+- [x] Google Gemini Vision Integration
+- [x] AI Medicine Validation
+- [x] Prescription Analysis
+- [x] Refill Prediction
+- [x] Dosage Analysis
+- [x] Refill Notifications
+- [x] Medication Adherence Analytics
+- [x] Background Scheduler
+- [x] REST APIs
+- [x] PostgreSQL Integration
